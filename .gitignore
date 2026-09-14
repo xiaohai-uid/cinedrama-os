@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/*.sqlite*
+*.log
+.env
+.DS_Store
+Thumbs.db
+public/storage/
+test*.wav

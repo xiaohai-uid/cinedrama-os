@@ -1,0 +1,26 @@
+# ==============================================================================
+# CineDrama OS 声明式架构配置文件 (Declarative Microkernel Configuration)
+# ==============================================================================
+
+server:
+  host: "127.0.0.1"
+  port: 3080
+
+database:
+  path: "./data/toonflow.sqlite"
+
+# 全局 TPM / RPM 令牌桶保护，防止触发上游模型供应商 429 封禁
+rateLimiter:
+  enabled: true
+  tpmLimit: 40000000
+  rpmLimit: 500
+
+# 插件装配清单 (通过配置即插即用)
+plugins:
+  provider-sensenova:
+    baseUrl: "https://token.sensenova.cn/v1"
+    defaultTextModel: "deepseek-v4-flash"
+    enableFallback: true
+  provider-bridge:
+    baseUrl: "http://127.0.0.1:8766"
+    enableFallback: true

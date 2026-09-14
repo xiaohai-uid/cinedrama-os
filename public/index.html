@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CineDrama Studio — AI 漫剧与短剧创作工坊</title>
+  <link rel="stylesheet" href="./style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- 桌面客户端原生无边框拖拽与控制条 -->
+  <div class="window-drag-bar">
+    <div class="window-drag-region">
+      <span class="win-dot"></span>
+      <span>CineDrama Studio · 影视级微内核创作者桌面版</span>
+    </div>
+    <div class="window-controls">
+      <button class="win-btn" id="winMinimize" title="最小化" type="button">🗕</button>
+      <button class="win-btn" id="winMaximize" title="最大化" type="button">🗖</button>
+      <button class="win-btn win-close" id="winClose" title="关闭" type="button">✕</button>
+    </div>
+  </div>
+
+  <div class="studio-app">
+    <!-- 顶部控制台导航栏 -->
+    <header class="studio-header">
+      <div class="brand-area">
+        <div class="logo-badge">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>CineDrama <span>Studio</span></h1>
+          <p class="subtitle">AI 影视漫剧创作者工坊</p>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="control-item">
+          <label>当前工程</label>
+          <select id="projectSelect">
+            <option value="">正在载入工程...</option>
+          </select>
+        </div>
+
+        <div class="control-item">
+          <label>画风预设</label>
+          <select id="stylePresetSelect">
+            <option value="xianxia">🇨🇳 国风修仙玄幻 (高精古风电影感)</option>
+            <option value="anime">🇯🇵 热血日漫番剧 (新海诚光影风)</option>
+            <option value="cyberpunk">🌃 赛博科幻都市 (霓虹光影暗黑感)</option>
+            <option value="cinematic">🎬 3D 超写实短剧 (好莱坞级电影质感)</option>
+          </select>
+        </div>
+
+        <div class="control-item">
+          <label>画幅比例</label>
+          <select id="aspectRatioSelect">
+            <option value="16:9">📺 16:9 横屏院线</option>
+            <option value="9:16">📱 9:16 竖屏短剧 (抖音/快手微短剧)</option>
+          </select>
+        </div>
+
+        <div class="control-item">
+          <label>AI 创作引擎</label>
+          <button class="ai-engine-btn" id="btnOpenAiSettings" title="点击查看 AI 引擎状态与设置">
+            <span class="status-dot green" id="engineStatusDot"></span>
+            <span class="engine-name" id="engineNameText">商汤 SenseNova (免费)</span>
+            <span class="engine-badge-tag" id="engineTag">零门槛</span>
+          </button>
+        </div>
+
+        <button class="btn btn-outline" id="btnNewProject">
+          <span>+</span> 新建漫剧
+        </button>
+      </div>
+    </header>
+
+    <!-- 主创作工坊工作区 -->
+    <main class="studio-body">
+      <!-- 左侧：输入与剧情发起站 -->
+      <aside class="left-panel">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>📖 灵感输入与网文改编</h3>
+            <span class="badge badge-accent">第 1 集</span>
+          </div>
+
+          <!-- 灵感快速模板快捷标签 -->
+          <div class="template-chips">
+            <span class="chip-label">热门范本：</span>
+            <button class="chip" data-tpl="xianxia">⚡ 仙尊龙王赘婿</button>
+            <button class="chip" data-tpl="cyber">⚡ 赛博大唐刺客</button>
+            <button class="chip" data-tpl="apocalypse">⚡ 末世空间囤货</button>
+          </div>
+
+          <div class="input-group">
+            <label for="novelTitleInput">漫剧集名 / 标题</label>
+            <input type="text" id="novelTitleInput" placeholder="输入本集短剧标题，例如：仙尊归来之龙王赘婿" value="仙尊归来之龙王赘婿">
+          </div>
+
+          <div class="input-group">
+            <label for="novelTextInput">小说原文 / 剧情脑洞</label>
+            <textarea id="novelTextInput" rows="8" placeholder="在这里粘贴小说章节原文、故事大纲或脑洞设定..."></textarea>
+            <div class="textarea-hint">
+              <span id="charCount">0 字</span>
+              <span>支持小说章节一键输入，AI 自动提炼三幕冲突与对白</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label for="workflowSelect">创作模式</label>
+            <select id="workflowSelect">
+              <option value="audiovisual-drama-workflow">🎬 全模态整集漫剧 (生图 + 角色配音 + 动态视频) [推荐]</option>
+              <option value="full-drama-workflow">🖼️ 剧本分镜漫剧 (剧本 + 高清分镜画面)</option>
+              <option value="dubbing-only-workflow">🎙️ 广播剧有声漫 (剧本 + 全角色对白配音)</option>
+              <option value="script-only-workflow">📝 纯剧本台词编剧 (仅故事大纲与对白)</option>
+            </select>
+          </div>
+
+          <!-- 一键生成大按钮 -->
+          <button class="btn btn-primary btn-generate" id="btnGenerate">
+            <span class="btn-icon">⚡</span>
+            <span class="btn-text">一键生成整集视听漫剧</span>
+          </button>
+
+          <!-- 创作实时进度条 (生成时展示) -->
+          <div class="progress-box hidden" id="progressBox">
+            <div class="progress-info">
+              <span class="progress-status" id="progressStatus">正在构思短剧剧本...</span>
+              <span class="progress-percent" id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="progressBarFill" style="width: 0%"></div>
+            </div>
+            <p class="progress-subtext" id="progressSubtext">正在调度专业编剧、原画师与配音演员...</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 右侧：视听生产成果与放映台 -->
+      <section class="right-panel">
+        <!-- 标签页头部 -->
+        <nav class="studio-tabs">
+          <button class="tab-btn active" data-tab="storyboard">
+            🎞️ 电影分镜台 <span class="tab-count" id="shotsCountBadge">0</span>
+          </button>
+          <button class="tab-btn" data-tab="cinema">
+            📽️ 全片放映厅
+          </button>
+          <button class="tab-btn" data-tab="script">
+            📝 剧本与台词
+          </button>
+          <button class="tab-btn" data-tab="assets">
+            👥 角色与概念
+          </button>
+          <button class="tab-btn" data-tab="eval">
+            📊 AI 质量评估 <span class="tab-badge-grade" id="evalTierBadge">未评</span>
+          </button>
+        </nav>
+
+        <!-- Tab 1: 电影分镜台 -->
+        <div class="tab-pane active" id="pane-storyboard">
+          <div class="pane-toolbar">
+            <div class="toolbar-info">
+              <h4>分镜剧照列表</h4>
+              <p>每一个镜头均包含视觉画面、角色对白语音试听与动态视频</p>
+            </div>
+            <div class="toolbar-actions">
+              <button class="btn btn-sm btn-ghost" id="btnPlayAllShots">
+                ▶ 放映本集全部镜头
+              </button>
+            </div>
+          </div>
+
+          <!-- 分镜网格 -->
+          <div class="storyboard-grid" id="storyboardGrid">
+            <div class="empty-state">
+              <div class="empty-icon">🎞️</div>
+              <p>暂无分镜数据，请在左侧输入小说后点击「一键生成整集视听漫剧」</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: 全片放映厅 -->
+        <div class="tab-pane" id="pane-cinema">
+          <div class="cinema-container">
+            <div class="cinema-screen" id="cinemaScreen">
+              <!-- 主放映画面 -->
+              <div class="screen-viewport" id="screenViewport">
+                <img id="cinemaImage" src="" alt="分镜画面" class="cinema-media hidden">
+                <video id="cinemaVideo" src="" class="cinema-media hidden" playsinline></video>
+                <div class="cinema-placeholder" id="cinemaPlaceholder">
+                  <span class="icon">📽️</span>
+                  <p>点击下方「开始放映」，即刻欣赏整集视听连贯大片</p>
+                </div>
+              </div>
+
+              <!-- 电影级字幕条 -->
+              <div class="cinema-subtitle-bar hidden" id="cinemaSubtitleBar">
+                <span class="speaker-tag" id="subtitleSpeaker">萧凡</span>
+                <span class="subtitle-text" id="subtitleText">三十年河东，三十年河西，莫欺少年穷！</span>
+              </div>
+            </div>
+
+            <!-- 放映机控制台 -->
+            <div class="cinema-controls">
+              <div class="cinema-progress">
+                <div class="cinema-track" id="cinemaTrack">
+                  <div class="cinema-track-fill" id="cinemaTrackFill" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="cinema-buttons">
+                <div class="left-controls">
+                  <span class="shot-indicator" id="cinemaShotIndicator">镜 1 / 3</span>
+                  <span class="shot-duration-info" id="cinemaDurationInfo">00:00 / 00:10</span>
+                  <span class="media-health-indicator" id="cinemaHealthIndicator" title="全片多模态视听流健康度">🟢 视听流: 100% 对齐</span>
+                </div>
+
+                <div class="center-controls">
+                  <button class="cinema-btn" id="btnPrevShot" title="上一镜">⏮</button>
+                  <button class="cinema-btn cinema-btn-main" id="btnPlayPause" title="播放/暂停">▶</button>
+                  <button class="cinema-btn" id="btnNextShot" title="下一镜">⏭</button>
+                </div>
+
+                <div class="right-controls">
+                  <button class="cinema-btn" id="btnMuteToggle" title="静音切换">🔊</button>
+                  <button class="cinema-btn" id="btnFullscreen" title="全屏放映">⛶</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: 剧本与台词 -->
+        <div class="tab-pane" id="pane-script">
+          <div class="script-view">
+            <div class="script-card">
+              <h4>🎯 三幕剧情冲突架构</h4>
+              <div class="acts-container" id="actsContainer">
+                <p class="text-muted">生成后自动展示短剧三幕高潮与冲突卡点</p>
+              </div>
+            </div>
+
+            <div class="script-card">
+              <h4>📜 分集标准短剧台词表</h4>
+              <div class="dialogue-list" id="dialogueList">
+                <p class="text-muted">生成后自动展示多角色对白与肢体动作提示</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: 角色与概念 -->
+        <div class="tab-pane" id="pane-assets">
+          <div class="assets-view">
+            <div class="assets-section">
+              <h4>👥 核心角色人设与音色卡片</h4>
+              <div class="characters-grid" id="charactersGrid">
+                <p class="text-muted">暂无角色设定</p>
+              </div>
+            </div>
+
+            <div class="assets-section">
+              <h4>🏞️ 经典场景概念氛围</h4>
+              <div class="scenes-grid" id="scenesGrid">
+                <p class="text-muted">暂无场景设定</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: AI 质量评估与诊断 (LLM-as-a-Judge) -->
+        <div class="tab-pane" id="pane-eval">
+          <div class="pane-toolbar">
+            <div class="toolbar-info">
+              <h4>影视工业级 AI 质量评估</h4>
+              <p>由 AI 资深制片人与编剧评审团对剧本张力、角色人设与镜头画面进行全维度打分与诊断</p>
+            </div>
+            <div class="toolbar-actions">
+              <button class="btn btn-sm btn-primary" id="btnRunEval">
+                ⚡ 重新运行 AI 质量评审
+              </button>
+            </div>
+          </div>
+
+          <!-- 评估结果主展区 -->
+          <div class="eval-container" id="evalContainer">
+            <!-- 默认未评测空状态 -->
+            <div class="empty-state" id="evalEmptyState">
+              <div class="empty-icon">📊</div>
+              <p>暂无评估数据。生成短剧后将自动进行影视评级，您也可以点击右上角「重新运行 AI 质量评审」。</p>
+            </div>
+
+            <!-- 评测结果面板 (评测完成后展示) -->
+            <div class="eval-content hidden" id="evalContent">
+              <!-- 顶部横幅：评级大徽章与总分 -->
+              <div class="eval-hero-card">
+                <div class="tier-badge-giant" id="evalTierGiant">S</div>
+                <div class="hero-info">
+                  <div class="hero-header">
+                    <h3 id="evalTitle">漫剧影视综合评定</h3>
+                    <span class="overall-score-pill"><span id="evalOverallScore">8.8</span> / 10 分</span>
+                  </div>
+                  <p class="eval-verdict" id="evalVerdict">短剧三幕起伏鲜明，开篇黄金三秒反转极大调动观众情绪，分镜镜头感极强。</p>
+                  <div class="eval-meta">
+                    <span id="evalJudgeModel">裁判模型: 商汤 SenseNova (deepseek-v4-flash)</span>
+                    <span id="evalTime">刚刚评估</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 中间双栏：四维评分条 + 亮点与改稿建议 -->
+              <div class="eval-grid">
+                <!-- 左侧：四大维度量化打分 -->
+                <div class="eval-card">
+                  <div class="card-header">
+                    <h4>🎯 核心维度量化打分</h4>
+                    <span class="card-tip">工业级爆款短剧量规</span>
+                  </div>
+                  <div class="dimension-list">
+                    <div class="dimension-row">
+                      <div class="dim-label-group">
+                        <span class="dim-name">⚡ 戏剧张力与冲突 (35%)</span>
+                        <span class="dim-score" id="scoreDramaticTension">8.5</span>
+                      </div>
+                      <div class="dim-bar-bg">
+                        <div class="dim-bar-fill" id="barDramaticTension" style="width: 85%"></div>
+                      </div>
+                      <p class="dim-reason" id="reasonDramaticTension">核心矛盾对立鲜明，主角逆境情绪爆发充分。</p>
+                    </div>
+
+                    <div class="dimension-row">
+                      <div class="dim-label-group">
+                        <span class="dim-name">💬 台词对白与人设 (30%)</span>
+                        <span class="dim-score" id="scoreDialogueQuality">9.0</span>
+                      </div>
+                      <div class="dim-bar-bg">
+                        <div class="dim-bar-fill" id="barDialogueQuality" style="width: 90%"></div>
+                      </div>
+                      <p class="dim-reason" id="reasonDialogueQuality">台词简短有力，符合人物性格，无多余说明书式废话。</p>
+                    </div>
+
+                    <div class="dimension-row">
+                      <div class="dim-label-group">
+                        <span class="dim-name">🎬 镜头画面与构图 (25%)</span>
+                        <span class="dim-score" id="scoreCinematicPacing">8.5</span>
+                      </div>
+                      <div class="dim-bar-bg">
+                        <div class="dim-bar-fill" id="barCinematicPacing" style="width: 85%"></div>
+                      </div>
+                      <p class="dim-reason" id="reasonCinematicPacing">特写与全景切换合理，提示词极富画面冲击力。</p>
+                    </div>
+
+                    <div class="dimension-row">
+                      <div class="dim-label-group">
+                        <span class="dim-name">⏱️ 视听流转与节奏 (10%)</span>
+                        <span class="dim-score" id="scorePacingConsistency">8.0</span>
+                      </div>
+                      <div class="dim-bar-bg">
+                        <div class="dim-bar-fill" id="barPacingConsistency" style="width: 80%"></div>
+                      </div>
+                      <p class="dim-reason" id="reasonPacingConsistency">镜头时长与台词语音节奏匹配紧凑。</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 右侧：亮点剖析与改稿建议 -->
+                <div class="eval-card">
+                  <div class="card-header">
+                    <h4>💡 专业制片人诊断与改稿锦囊</h4>
+                    <span class="card-tip">给小说作者的实操指南</span>
+                  </div>
+
+                  <div class="insight-section">
+                    <h5 class="insight-title highlight-title">✨ 本作核心亮点</h5>
+                    <ul class="insight-list" id="evalHighlightsList">
+                      <li>黄金开场迅速抛出退婚与羞辱危机，爽点反弹预期极高；</li>
+                      <li>主角台词「莫欺少年穷」具有极高社交传播力与共情点。</li>
+                    </ul>
+                  </div>
+
+                  <div class="insight-section">
+                    <h5 class="insight-title improvement-title">🛠️ 针对性改稿建议</h5>
+                    <ul class="insight-list" id="evalImprovementsList">
+                      <li>建议在第 2 镜增加反派执事藐视冷笑的面部微表情特写，强化压迫感；</li>
+                      <li>第 3 镜结尾可增加悬念音效或画外音，增强下一集的留存钩子。</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 全局弹窗与图片放大预览 -->
+  <div class="modal hidden" id="imageModal">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-content">
+      <button class="modal-close" id="modalClose">✕</button>
+      <img id="modalImage" src="" alt="放大预览">
+      <div class="modal-caption" id="modalCaption"></div>
+    </div>
+  </div>
+
+  <!-- AI 创作引擎设置弹窗 (小白非技术向设计) -->
+  <div class="modal hidden" id="aiSettingsModal">
+    <div class="modal-backdrop" id="aiSettingsBackdrop"></div>
+    <div class="modal-content ai-settings-modal-content">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <span class="modal-icon">⚡</span>
+          <h3>AI 创作引擎设置</h3>
+        </div>
+        <button class="modal-close" id="aiSettingsClose">✕</button>
+      </div>
+
+      <div class="ai-settings-body">
+        <div class="notice-card">
+          <div class="notice-icon">🎁</div>
+          <div class="notice-text">
+            <strong>零配置免费可用</strong>
+            <p>已自动激活您知识库绑定的商汤 SenseNova 官方通道，DeepSeek V4 Flash 免费极速模型已就绪，永久充足额度，无需支付费用。</p>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>创作模型</label>
+          <select id="settingModelSelect" class="form-select">
+            <option value="deepseek-v4-flash">⚡ DeepSeek V4 Flash (商汤官方免费 · 推荐)</option>
+            <option value="sensenova-6.7-flash-lite">🚀 SenseNova 6.7 Flash Lite (商汤轻量高速)</option>
+            <option value="sensenova-6.8-flash-lite">🌟 SenseNova 6.8 Flash Lite (新一代轻量)</option>
+            <option value="bridge-text-mock">💻 离线模拟演示模式 (无需网络连接)</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label>模型服务地址 (Base URL)</label>
+          <input type="text" id="settingBaseUrlInput" class="form-input" value="https://token.sensenova.cn/v1">
+        </div>
+
+        <div class="form-row">
+          <label>API 凭据密钥 (API Key)</label>
+          <div class="input-with-action">
+            <input type="password" id="settingApiKeyInput" class="form-input" placeholder="已自动继承环境凭据 (sk-...)">
+            <button class="btn btn-sm btn-outline" id="btnToggleKeyVisibility" type="button">👁️</button>
+          </div>
+          <span class="field-hint" id="apiKeyStatusHint">🟢 已从系统环境自动载入密钥，小白创作者无需修改</span>
+        </div>
+
+        <div class="connection-test-card" id="connectionTestCard">
+          <div class="test-status-line">
+            <span class="test-label">当前连通状态：</span>
+            <span class="test-value" id="testResultText">点击右侧按钮进行连通性与网络测速</span>
+          </div>
+          <button class="btn btn-sm btn-primary" id="btnTestConnection" type="button">
+            <span>⚡ 一键测速诊断</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="btnCancelAiSettings" type="button">取消</button>
+        <button class="btn btn-primary" id="btnSaveAiSettings" type="button">保存设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 隐藏全局音频播放器 -->
+  <audio id="globalAudioPlayer" preload="auto"></audio>
+
+  <script src="./app.js"></script>
+</body>
+</html>

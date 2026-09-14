@@ -1,0 +1,28 @@
+{
+  "name": "cinedrama-os",
+  "version": "1.0.0",
+  "description": "Industrial-grade AI Anime & Multi-Modal Drama Production Operating System based on Cordis Microkernel",
+  "author": "xiaohai-uid",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cordis": "^4.0.0-rc.10",
+    "yaml": "^2.7.0",
+    "better-sqlite3": "^12.6.2",
+    "zod": "^3.24.2",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.9",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  }
+}
