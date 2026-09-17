@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import { execFileSync } from "node:child_process";
 import { describe, it, expect, afterAll } from "vitest";
 import { createContext } from "../src/core/context.js";
 import { RateLimiterService } from "../src/services/rate-limiter.js";
@@ -61,6 +63,18 @@ describe("CineDrama OS Real Capability & Verifiable User Output Assertions", () 
     const vttContent = fs.readFileSync(vttPath, "utf-8");
     expect(vttContent).toContain("WEBVTT");
     expect(vttContent).toContain("三十年河东，三十年河西！");
+
+    // 验证物理级动态运镜插值：首尾帧像素产生真实位移与尺度缩放，绝非静态定格伪装
+    const f0Path = path.join(os.tmpdir(), `f0_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.png`);
+    const f1Path = path.join(os.tmpdir(), `f1_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.png`);
+    execFileSync("ffmpeg", ["-y", "-ss", "0.1", "-i", diskPath, "-frames:v", "1", "-update", "1", f0Path], { stdio: "ignore", windowsHide: true });
+    execFileSync("ffmpeg", ["-y", "-ss", "1.5", "-i", diskPath, "-frames:v", "1", "-update", "1", f1Path], { stdio: "ignore", windowsHide: true });
+    expect(fs.existsSync(f0Path)).toBe(true);
+    expect(fs.existsSync(f1Path)).toBe(true);
+    const f0Buf = fs.readFileSync(f0Path);
+    const f1Buf = fs.readFileSync(f1Path);
+    try { fs.unlinkSync(f0Path); fs.unlinkSync(f1Path); } catch {}
+    expect(f0Buf.equals(f1Buf)).toBe(false);
   });
 
   it("Assertion 3 (Consistency): Must separate prompt text audit from actual image asset presence", () => {

@@ -42,7 +42,7 @@ export interface VideoRenderResult {
   error?: string;
 }
 
-function createBmpBuffer(width: number, height: number, r: number, g: number, b: number): Buffer {
+function createBmpBuffer(width: number, height: number, baseR: number, baseG: number, baseB: number): Buffer {
   const rowSize = Math.floor((24 * width + 31) / 32) * 4;
   const imageSize = rowSize * height;
   const fileSize = 54 + imageSize;
@@ -56,9 +56,32 @@ function createBmpBuffer(width: number, height: number, r: number, g: number, b:
   buf.writeUInt16LE(1, 26);
   buf.writeUInt16LE(24, 28);
   buf.writeUInt32LE(imageSize, 34);
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const maxDist = Math.sqrt(cx * cx + cy * cy);
+
   for (let y = 0; y < height; y++) {
     const rowOffset = 54 + y * rowSize;
+    const dy = y - cy;
     for (let x = 0; x < width; x++) {
+      const dx = x - cx;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      // 电影级径向光晕与暗角衰减 (Vignette & Cinema Focal Center)
+      const vignette = Math.max(0.2, 1.0 - (dist / maxDist) * 0.7);
+      // 电影级微结构构图辅助线 (三等分线焦距追踪)
+      const isGrid = (
+        Math.abs(x - Math.round(width / 3)) <= 1 ||
+        Math.abs(x - Math.round((width * 2) / 3)) <= 1 ||
+        Math.abs(y - Math.round(height / 3)) <= 1 ||
+        Math.abs(y - Math.round((height * 2) / 3)) <= 1
+      );
+      const gridBoost = isGrid ? 25 : 0;
+
+      const r = Math.min(255, Math.max(0, Math.round(baseR * vignette + gridBoost)));
+      const g = Math.min(255, Math.max(0, Math.round(baseG * vignette + gridBoost)));
+      const b = Math.min(255, Math.max(0, Math.round(baseB * vignette + gridBoost)));
+
       buf[rowOffset + x * 3 + 0] = b;
       buf[rowOffset + x * 3 + 1] = g;
       buf[rowOffset + x * 3 + 2] = r;
