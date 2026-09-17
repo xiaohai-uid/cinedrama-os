@@ -77,6 +77,9 @@ export const VideoGenerateOptionsSchema = z.object({
   endFrame: z.string().optional(),
   referenceImages: z.array(z.string()).optional(),
   audioPathOrBase64: z.string().optional(),
+  cameraMotion: z.enum(["zoom_in", "zoom_out", "pan_right", "pan_left", "breathing", "still"]).optional(),
+  dialogue: z.string().optional(),
+  voiceRole: z.string().optional(),
 });
 export type VideoGenerateOptions = z.infer<typeof VideoGenerateOptionsSchema>;
 
@@ -151,6 +154,8 @@ export const StoryboardShotSchema = z.object({
   prompt: z.string().min(1),
   dialogue: z.string().optional(),
   voiceRole: z.string().optional(),
+  cameraAngle: z.string().optional(),
+  cameraMotion: z.enum(["zoom_in", "zoom_out", "pan_right", "pan_left", "breathing", "still"]).optional(),
   duration: z.number().positive().default(3.5),
   status: z.enum(["draft", "image_ready", "video_generating", "video_ready", "failed"]),
   imageUrl: z.string().optional(),
@@ -246,6 +251,9 @@ export const GenerateVideoDtoSchema = z.object({
   endFrame: z.string().optional(),
   referenceImages: z.array(z.string()).optional(),
   audioPathOrBase64: z.string().optional(),
+  cameraMotion: z.enum(["zoom_in", "zoom_out", "pan_right", "pan_left", "breathing", "still"]).optional(),
+  dialogue: z.string().optional(),
+  voiceRole: z.string().optional(),
 });
 export type GenerateVideoDto = z.infer<typeof GenerateVideoDtoSchema>;
 

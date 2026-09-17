@@ -543,6 +543,16 @@
       const card = document.createElement('div');
       card.className = 'shot-card';
 
+      const motionLabels = {
+        zoom_in: '🎥 缓推特写',
+        zoom_out: '🎬 远景缓拉',
+        pan_right: '⏩ 镜头右移',
+        pan_left: '⏪ 镜头左移',
+        breathing: '✨ 动态呼吸',
+        still: '📷 经典定格'
+      };
+      const motionBadge = motionLabels[shot.cameraMotion] || (shot.cameraAngle?.includes('特写') ? '🎥 缓推特写' : (shot.cameraAngle?.includes('远景') ? '🎬 远景缓拉' : '🎥 电影运镜'));
+
       const imageSrc = shot.imageUrl || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MDAiIGhlaWdodD0iNDUwIj48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjQ1MCIgZmlsbD0iIzE0MTcyMiIvPjwvc3ZnPg==';
 
       card.innerHTML = `
@@ -551,6 +561,7 @@
           <div class="shot-badges">
             <span class="shot-num">镜 #${shot.shotIndex}</span>
             <span class="shot-camera">${shot.cameraAngle || '中景'}</span>
+            <span class="shot-motion">${motionBadge}</span>
           </div>
           <span class="shot-duration">${shot.duration || 3.5}s</span>
         </div>
@@ -583,7 +594,12 @@
           <div class="shot-health-pills">
             ${
               shot.audioUrl
-                ? `<span class="shot-health-badge healthy" title="16kHz PCM 标准音频流，无静音与爆音">🟢 16kHz PCM</span>`
+                ? `<span class="shot-health-badge neural" title="Edge Neural 情感拟真人声配音">🎙️ 神经拟真</span>`
+                : ''
+            }
+            ${
+              shot.dialogue
+                ? `<span class="shot-health-badge subtitle" title="含字幕混流轨道与对白字幕">💬 字幕对齐</span>`
                 : ''
             }
             <span class="shot-health-badge sync" title="音画时长已自动对齐">${shot.duration || 3.5}s 对齐</span>

@@ -365,6 +365,10 @@ export class SenseNovaProviderPlugin implements IModelProvider {
       prompt: options.prompt,
       duration: options.duration || 3.5,
       firstFrame: options.firstFrame,
+      audioPathOrBase64: options.audioPathOrBase64,
+      cameraMotion: options.cameraMotion,
+      dialogue: options.dialogue,
+      voiceRole: options.voiceRole,
     });
     return {
       videoUrl: render.videoUrl,

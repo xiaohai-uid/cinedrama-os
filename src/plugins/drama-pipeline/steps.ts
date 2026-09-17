@@ -585,6 +585,9 @@ export function createVideoRenderStep(ctx: Context): PipelineStep {
           duration: shot.duration || 3.5,
           firstFrame: shotRecord?.imageUrl,
           audioPathOrBase64: shotRecord?.audioUrl,
+          cameraMotion: shot.cameraMotion,
+          dialogue: shot.dialogue,
+          voiceRole: shot.voiceRole,
         });
 
         const videoUrl = video.videoUrl || "";

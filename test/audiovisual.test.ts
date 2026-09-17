@@ -155,7 +155,7 @@ describe("CineDrama OS Audiovisual Multi-modal Pipeline", () => {
     // 验证按状态过滤接口
     const readyShots = ctx.db.listShotsByStatus(project.id, "video_ready");
     expect(readyShots.length).toBe(3);
-  });
+  }, 25000);
 
   it("should run dubbing-only workflow without video generation", async () => {
     const project = ctx.db.createProject({
@@ -168,13 +168,23 @@ describe("CineDrama OS Audiovisual Multi-modal Pipeline", () => {
       workflowId: "dubbing-only-workflow",
       input: {
         novelText: "纯音频测试对白短剧",
+        title: "纯音频测试",
       },
     });
 
     expect(job.status).toBe("completed");
+    expect(job.output).toBeDefined();
+    expect(job.output["step-skeleton"]).toBeDefined();
+    expect(job.output["step-script"]).toBeDefined();
+    expect(job.output["step-assets"]).toBeDefined();
+    expect(job.output["step-storyboard"]).toBeDefined();
     expect(job.output["step-dubbing-tts"]).toBeDefined();
     expect(job.output["step-render-images"]).toBeUndefined();
     expect(job.output["step-render-videos"]).toBeUndefined();
+
+    // 验证每一步的执行明细落库 (5步)
+    const steps = ctx.db.listJobSteps(job.id);
+    expect(steps.length).toBe(5);
 
     const shots = ctx.db.listShotsByProject(project.id);
     expect(shots.length).toBe(3);
@@ -183,5 +193,5 @@ describe("CineDrama OS Audiovisual Multi-modal Pipeline", () => {
       expect(shot.imageUrl).toBeUndefined();
       expect(shot.videoUrl).toBeUndefined();
     }
-  });
+  }, 25000);
 });

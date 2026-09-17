@@ -10,12 +10,52 @@ export interface SpeechSynthOptions {
 }
 
 /**
- * 语音合成引擎 (Windows SAPI 真实配音 + 跨平台多谐波声学发声双引擎)
- * 彻底消除“不同文本不同音色生成完全相同字节正弦波”的假配音问题
+ * 影视级全模态语音合成引擎 (三级自适应阶梯架构: Edge Neural 神经拟真人声 -> SAPI 原生真人 -> 多谐波共振峰)
+ * 彻底消除假配音，按角色赋予专业短剧影视音色 (云希热血主角 / 晓晓灵动女主 / 云健沉稳反派与旁白)
  */
 export function synthesizeSpeech(options: SpeechSynthOptions): Buffer {
   const text = (options.text || "").trim() || "无对白";
   const voice = (options.voice || "male").toLowerCase();
+
+  // 0. 优先调用微软 Edge Neural 神经语音引擎 (爆款短剧原版高拟真情感音色)
+  try {
+    let neuralVoice = "zh-CN-YunxiNeural"; // 默认热血青年主角
+    if (voice.includes("female") || voice.includes("女") || voice.includes("xiaoxiao") || voice.includes("师妹") || voice.includes("女主")) {
+      neuralVoice = "zh-CN-XiaoxiaoNeural";
+    } else if (voice.includes("yunjian") || voice.includes("执事") || voice.includes("反派") || voice.includes("长老") || voice.includes("旁白") || voice.includes("narrator")) {
+      neuralVoice = "zh-CN-YunjianNeural";
+    } else if (voice.startsWith("zh-cn-") || voice.includes("neural")) {
+      neuralVoice = options.voice!;
+    }
+
+    const tmpMp3 = path.join(os.tmpdir(), `cd_neural_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.mp3`);
+    const safeText = text.replace(/[\r\n\t]/g, " ").slice(0, 500);
+
+    execFileSync("edge-tts", ["--voice", neuralVoice, "--text", safeText, "--write-media", tmpMp3], {
+      stdio: "ignore",
+      timeout: 8000,
+      windowsHide: true,
+    });
+
+    if (fs.existsSync(tmpMp3) && fs.statSync(tmpMp3).size > 500) {
+      // 通过系统 FFmpeg 规范化混流为 16kHz Mono 16-bit PCM WAV，保持全管线格式绝对一致
+      const tmpWav = path.join(os.tmpdir(), `cd_neural_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.wav`);
+      execFileSync("ffmpeg", ["-y", "-i", tmpMp3, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", tmpWav], {
+        stdio: "ignore",
+        timeout: 5000,
+        windowsHide: true,
+      });
+      try { fs.unlinkSync(tmpMp3); } catch {}
+
+      if (fs.existsSync(tmpWav) && fs.statSync(tmpWav).size > 44) {
+        const buf = fs.readFileSync(tmpWav);
+        try { fs.unlinkSync(tmpWav); } catch {}
+        return normalizeWavToCanonical44Byte(buf);
+      }
+    }
+  } catch {
+    // 离线、超时或未连接时，平滑降级至 Tier 1
+  }
 
   // 1. Windows 原生环境优先调用系统内置高质量语音引擎 (System.Speech)
   if (process.platform === "win32") {

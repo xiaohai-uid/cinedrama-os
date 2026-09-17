@@ -3,11 +3,34 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
+export type CameraMotion = "zoom_in" | "zoom_out" | "pan_right" | "pan_left" | "breathing" | "still";
+
 export interface VideoRenderOptions {
   prompt?: string;
   duration?: number;
   firstFrame?: string;
   audioPathOrBase64?: string;
+  cameraMotion?: CameraMotion;
+  dialogue?: string;
+  voiceRole?: string;
+}
+
+export function resolveCameraMotion(options: VideoRenderOptions): CameraMotion {
+  if (options.cameraMotion) return options.cameraMotion;
+  const p = (options.prompt || "").toLowerCase();
+  if (p.includes("特写") || p.includes("close-up") || p.includes("目光") || p.includes("眼神") || p.includes("神光")) {
+    return "zoom_in";
+  }
+  if (p.includes("远景") || p.includes("全景") || p.includes("wide") || p.includes("演武场") || p.includes("暗云")) {
+    return "zoom_out";
+  }
+  if (p.includes("移") || p.includes("追") || p.includes("猎猎") || p.includes("风呼啸") || p.includes("横移")) {
+    return "pan_right";
+  }
+  if (p.includes("呼吸") || p.includes("对立") || p.includes("对峙") || p.includes("微弱") || p.includes("凝视")) {
+    return "breathing";
+  }
+  return "zoom_in";
 }
 
 export interface VideoRenderResult {
@@ -107,9 +130,31 @@ export function generateRealVideo(options: VideoRenderOptions): VideoRenderResul
     }
   }
 
+  // 3. 准备字幕文件 (若有角色对白)
+  let tmpSrtPath: string | null = null;
+  if (options.dialogue && options.dialogue.trim()) {
+    try {
+      const subText = options.dialogue.trim().replace(/[\r\n]/g, " ");
+      const role = options.voiceRole ? `[${options.voiceRole}] ` : "";
+      const endSec = Math.max(1, duration);
+      const endMs = Math.floor((endSec % 1) * 1000);
+      const endS = Math.floor(endSec % 60).toString().padStart(2, "0");
+      const endM = Math.floor((endSec / 60) % 60).toString().padStart(2, "0");
+      const endH = Math.floor(endSec / 3600).toString().padStart(2, "0");
+      const srtTime = `${endH}:${endM}:${endS},${endMs.toString().padStart(3, "0")}`;
+
+      tmpSrtPath = path.join(os.tmpdir(), `cd_sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.srt`);
+      fs.writeFileSync(tmpSrtPath, `1\n00:00:00,000 --> ${srtTime}\n${role}${subText}\n`, "utf-8");
+
+      // 同步生成 WebVTT 独立字幕文件供前端播放器 <track> 原生支持
+      const vttPath = path.join(storageVideosDir, fileName.replace(/\.mp4$/, ".vtt"));
+      fs.writeFileSync(vttPath, `WEBVTT\n\n1\n00:00:00.000 --> ${srtTime.replace(",", ".")}\n${role}${subText}\n`, "utf-8");
+    } catch {}
+  }
+
   let ffmpegError: string | null = null;
 
-  // 3. 尝试使用系统 FFmpeg 生成真正可播放的 H.264 / AAC MP4 容器
+  // 4. 尝试使用系统 FFmpeg 生成真正可播放、带电影级运镜与字幕的 H.264 / AAC MP4 容器
   try {
     const ffmpegArgs: string[] = ["-y"];
 
@@ -128,10 +173,34 @@ export function generateRealVideo(options: VideoRenderOptions): VideoRenderResul
       ffmpegArgs.push("-f", "lavfi", "-i", `anullsrc=r=16000:cl=mono`);
     }
 
+    // 字幕流输入 (若有)
+    const hasSub = Boolean(tmpSrtPath && fs.existsSync(tmpSrtPath));
+    if (hasSub) {
+      ffmpegArgs.push("-i", tmpSrtPath!);
+    }
+
+    // 电影级运镜滤镜计算 (25fps 高帧率平滑插值)
+    const fps = 25;
+    const totalFrames = Math.max(25, Math.round(duration * fps));
+    const motion = resolveCameraMotion(options);
+
+    let vfFilter = "scale=1280:720,format=yuv420p";
+    if (motion === "zoom_in") {
+      vfFilter = `zoompan=z='min(zoom+0.0015,1.20)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${totalFrames}:s=1280x720:fps=${fps},format=yuv420p`;
+    } else if (motion === "zoom_out") {
+      vfFilter = `zoompan=z='if(lte(zoom,1.0),1.18,max(1.001,zoom-0.0015))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${totalFrames}:s=1280x720:fps=${fps},format=yuv420p`;
+    } else if (motion === "pan_right") {
+      vfFilter = `zoompan=z=1.12:x='if(lte(on,1),0,min(x+0.8,iw-iw/zoom))':y='(ih-ih/zoom)/2':d=${totalFrames}:s=1280x720:fps=${fps},format=yuv420p`;
+    } else if (motion === "pan_left") {
+      vfFilter = `zoompan=z=1.12:x='if(lte(on,1),iw-iw/zoom,max(x-0.8,0))':y='(ih-ih/zoom)/2':d=${totalFrames}:s=1280x720:fps=${fps},format=yuv420p`;
+    } else if (motion === "breathing") {
+      vfFilter = `zoompan=z='1.03+0.015*sin(on/10)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${totalFrames}:s=1280x720:fps=${fps},format=yuv420p`;
+    }
+
     // 输出滤镜与编码设置 (必须放在所有输入之后)
     ffmpegArgs.push("-t", String(duration));
     if (hasImage) {
-      ffmpegArgs.push("-vf", "scale=1280:720,format=yuv420p", "-tune", "stillimage");
+      ffmpegArgs.push("-vf", vfFilter);
     }
     ffmpegArgs.push(
       "-c:v",
@@ -139,10 +208,12 @@ export function generateRealVideo(options: VideoRenderOptions): VideoRenderResul
       "-pix_fmt",
       "yuv420p",
       "-c:a",
-      "aac",
-      "-shortest",
-      outPath
+      "aac"
     );
+    if (hasSub) {
+      ffmpegArgs.push("-c:s", "mov_text", "-metadata:s:s:0", "language=chi");
+    }
+    ffmpegArgs.push("-shortest", outPath);
 
     execFileSync("ffmpeg", ffmpegArgs, {
       stdio: "ignore",
@@ -170,6 +241,11 @@ export function generateRealVideo(options: VideoRenderOptions): VideoRenderResul
     if (tmpImagePath && tmpImagePath.startsWith(os.tmpdir())) {
       try {
         fs.unlinkSync(tmpImagePath);
+      } catch {}
+    }
+    if (tmpSrtPath && tmpSrtPath.startsWith(os.tmpdir())) {
+      try {
+        fs.unlinkSync(tmpSrtPath);
       } catch {}
     }
   }

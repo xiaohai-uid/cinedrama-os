@@ -36,14 +36,17 @@ describe("CineDrama OS Real Capability & Verifiable User Output Assertions", () 
     expect(bufA.length).toBeGreaterThan(1000);
     expect(bufB.length).toBeGreaterThan(1000);
     expect(bufA.equals(bufB)).toBe(false);
-  });
+  }, 20000);
 
-  it("Assertion 2 (Video): Video generation must create physical, non-empty playable MP4 file on disk", async () => {
+  it("Assertion 2 (Video): Video generation must create physical, non-empty playable MP4 file on disk with cinematic camera motion & subtitles", async () => {
     const video = await provider.generateVideo({
       model: "bridge-video",
       prompt: "少年主角拔剑凌空飞斩特写",
+      cameraMotion: "zoom_in",
       duration: 2,
       firstFrame: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MDAiIGhlaWdodD0iNDUwIj48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjQ1MCIgZmlsbD0iIzEyMzQ1NiIvPjwvc3ZnPg==",
+      dialogue: "三十年河东，三十年河西！",
+      voiceRole: "萧凡",
     });
 
     expect(video.videoUrl).toMatch(/^\/storage\/videos\/shot-.*\.mp4$/);
@@ -51,6 +54,13 @@ describe("CineDrama OS Real Capability & Verifiable User Output Assertions", () 
     expect(fs.existsSync(diskPath)).toBe(true);
     const stat = fs.statSync(diskPath);
     expect(stat.size).toBeGreaterThan(500); // 必须是包含真实视频盒容器的文件
+
+    // 验证同步生成独立 WebVTT 字幕文件
+    const vttPath = diskPath.replace(/\.mp4$/, ".vtt");
+    expect(fs.existsSync(vttPath)).toBe(true);
+    const vttContent = fs.readFileSync(vttPath, "utf-8");
+    expect(vttContent).toContain("WEBVTT");
+    expect(vttContent).toContain("三十年河东，三十年河西！");
   });
 
   it("Assertion 3 (Consistency): Must separate prompt text audit from actual image asset presence", () => {
