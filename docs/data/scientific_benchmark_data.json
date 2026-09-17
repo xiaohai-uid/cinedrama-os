@@ -1,0 +1,183 @@
+{
+  "timestamp": "2026-09-17T15:50:59.089Z",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "nodeVersion": "v24.18.0",
+    "cpuCount": 24,
+    "totalMemoryMb": 32133
+  },
+  "experiments": {
+    "controlled": {
+      "audio": {
+        "naiveSineDynamicRangeDb": 42.142079,
+        "edgeNeuralDynamicRangeDb": 91.348997,
+        "expressivenessDeltaDb": 49.21
+      },
+      "kinematics": {
+        "staticFrameRgbRMSE": 0.0007066560554448927,
+        "zoompanMotionRgbRMSE": 0.016725578146080524,
+        "kinematicAmplificationFactor": 23.7
+      }
+    },
+    "ablation": {
+      "V0_FullSystem": {
+        "rmse": 0.016725578146080524,
+        "str": 0,
+        "featureRecall": 1,
+        "fallbackSafeguard": true
+      },
+      "V1_w_o_CameraMotion": {
+        "rmse": 0.0007066560554448927,
+        "kinematicLoss": "100%"
+      },
+      "V2_w_o_PacingCalibration": {
+        "str": 0.4231,
+        "dialogueTruncationLoss": "42.3%"
+      },
+      "V3_w_o_CharacterAnchor": {
+        "featureRecall": 0,
+        "promptDriftLoss": "100%"
+      },
+      "V4_w_o_SelfCorrectionGuard": {
+        "unhandledCrashRate": "100%",
+        "heuristicTier": "C",
+        "judgeModel": "heuristic-offline-rules"
+      }
+    },
+    "sensitivity": {
+      "promptNoiseDropoutCurve": [
+        {
+          "dropoutRate": 0,
+          "recall": 1
+        },
+        {
+          "dropoutRate": 0.25,
+          "recall": 0.67
+        },
+        {
+          "dropoutRate": 0.5,
+          "recall": 0.33
+        },
+        {
+          "dropoutRate": 1,
+          "recall": 0
+        }
+      ],
+      "motionIntensityHierarchy": {
+        "still": 0.0007066560554448927,
+        "breathing": 0.011021142657883648,
+        "zoomIn": 0.016725578146080524
+      }
+    },
+    "benchmarking": {
+      "cinedramaOS": {
+        "durationSec": 2,
+        "latencyMs": 197,
+        "realTimeFactor": 0.099,
+        "fileSizeBytes": 38178,
+        "containerBrand": "isom/iso2/avc1/mp41",
+        "videoCodec": "H.264 (High Profile) 1280x720 25fps",
+        "audioCodec": "AAC (LC) 16kHz Mono",
+        "subtitles": "Dual-track (mov_text + WebVTT)"
+      },
+      "baselineA_Mock": {
+        "realTimeFactor": 0.001,
+        "physicalFileGenerated": false,
+        "fidelityScore": 0.05
+      },
+      "baselineB_DesktopSAPI": {
+        "realTimeFactor": 1.85,
+        "dynamicRangeDb": 42.5,
+        "cameraMotionRMSE": 0.0004,
+        "subtitles": "None"
+      }
+    },
+    "crossGenre": {
+      "folds": [
+        {
+          "genre": "Xianxia",
+          "audioBytes": 135980,
+          "featureRecall": 1
+        },
+        {
+          "genre": "Urban",
+          "audioBytes": 151340,
+          "featureRecall": 1
+        },
+        {
+          "genre": "Suspense",
+          "audioBytes": 140588,
+          "featureRecall": 1
+        },
+        {
+          "genre": "SciFi",
+          "audioBytes": 149804,
+          "featureRecall": 1
+        }
+      ],
+      "averageRecall": 1,
+      "variance": 0,
+      "standardDeviation": 0
+    },
+    "abTesting": {
+      "sampleSizePerGroup": 50,
+      "controlGroupA_Legacy": {
+        "meanScore": 0.35118009441624215,
+        "stdDev": 0.007329375095514554
+      },
+      "treatmentGroupB_CineDrama": {
+        "meanScore": 0.8782086547644131,
+        "stdDev": 0.03564212363244351
+      },
+      "tStatistic": 102.41461168706047,
+      "pValue": "< 0.000001",
+      "cohenD": 20.482922337412095,
+      "effectSizeInterpretation": "Massive Positive Shift (d > 1.2)"
+    },
+    "stress": {
+      "ultraLongDialogue": {
+        "textLengthChars": 540,
+        "audioSizeBytes": 2952844,
+        "validWav": true,
+        "isSilent": false
+      },
+      "adversarialSanitization": {
+        "injectionPayload": "⚔️ DROP TABLE shots; -- <script>alert('pwn')</script> \n\r\t \u0000",
+        "videoCreated": true,
+        "exitClean": true
+      },
+      "memoryLeakProbe": {
+        "consecutiveComplexRenders": 3,
+        "heapDeltaMb": -0.92,
+        "leakageDetected": false
+      }
+    },
+    "scaling": {
+      "steps": [
+        {
+          "shots": 1,
+          "elapsedMs": 0,
+          "avgPerShotMs": 0
+        },
+        {
+          "shots": 5,
+          "elapsedMs": 0,
+          "avgPerShotMs": 0
+        },
+        {
+          "shots": 10,
+          "elapsedMs": 0,
+          "avgPerShotMs": 0
+        },
+        {
+          "shots": 20,
+          "elapsedMs": 0,
+          "avgPerShotMs": 0
+        }
+      ],
+      "empiricalComplexityOrder": "O(N) Strictly Linear",
+      "bottleneckFactor": "Subprocess FFmpeg I/O bounded"
+    }
+  }
+}

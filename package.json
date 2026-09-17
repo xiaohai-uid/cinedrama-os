@@ -9,7 +9,8 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "benchmark:scientific": "tsx scripts/run_scientific_experiments.ts"
   },
   "dependencies": {
     "cordis": "^4.0.0-rc.10",
