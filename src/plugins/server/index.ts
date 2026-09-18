@@ -19,7 +19,10 @@ import {
   StoryboardPlanningSchema,
   EvaluateDramaDtoSchema,
   VerifyAudioDtoSchema,
+  ReorderShotsDtoSchema,
+  ExportProjectDtoSchema,
 } from "../../core/types.js";
+import { exportFullEpisode } from "../../services/video-generator.js";
 
 export interface ServerPluginConfig {
   host?: string;
@@ -325,6 +328,41 @@ export function apply(ctx: Context, config: ServerPluginConfig = {}) {
         const continuity = (ctx.root as any)?.continuity || (ctx as any).reflect?.get?.("continuity");
         const ledger = continuity ? continuity.getOrCreateLedger(projectId) : { projectId, characters: [], props: [], hooks: [] };
         return sendJson(200, { ledger });
+      }
+
+      // 6.10 POST /api/projects/:id/shots/reorder
+      if (pathname.startsWith("/api/projects/") && pathname.endsWith("/shots/reorder") && req.method === "POST") {
+        const parts = pathname.split("/");
+        const projectId = parts[3];
+        const body = await readBody();
+        const parsed = ReorderShotsDtoSchema.safeParse(body);
+        if (!parsed.success) {
+          return sendValidationError(parsed.error);
+        }
+        const updatedShots = ctx.db.reorderShots(projectId, parsed.data.shotIds);
+        return sendJson(200, { success: true, shots: updatedShots });
+      }
+
+      // 6.11 POST /api/projects/:id/export
+      if (pathname.startsWith("/api/projects/") && pathname.endsWith("/export") && req.method === "POST") {
+        const parts = pathname.split("/");
+        const projectId = parts[3];
+        const body = await readBody();
+        const parsed = ExportProjectDtoSchema.safeParse(body);
+        if (!parsed.success) {
+          return sendValidationError(parsed.error);
+        }
+        const shots = ctx.db.listShotsByProject(projectId);
+        const exportResult = exportFullEpisode(shots, projectId, parsed.data);
+        return sendJson(200, { export: exportResult });
+      }
+
+      // 6.12 GET /api/projects/:id/shots
+      if (pathname.startsWith("/api/projects/") && pathname.endsWith("/shots") && req.method === "GET") {
+        const parts = pathname.split("/");
+        const projectId = parts[3];
+        const shots = ctx.db.listShotsByProject(projectId);
+        return sendJson(200, { shots });
       }
 
       // 7. GET /api/pipeline/steps

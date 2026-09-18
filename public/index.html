@@ -71,7 +71,9 @@
             <span class="engine-name" id="engineNameText">商汤 SenseNova (免费)</span>
             <span class="engine-badge-tag" id="engineTag">零门槛</span>
           </button>
-        </div>
+        <button class="btn btn-outline btn-export" id="btnOpenExportModal" title="将当前工程所有分镜合成为整集短剧成片">
+          <span>⬇️</span> 导出整集
+        </button>
 
         <button class="btn btn-outline" id="btnNewProject">
           <span>+</span> 新建漫剧
@@ -173,7 +175,19 @@
               <button class="btn btn-sm btn-ghost" id="btnPlayAllShots">
                 ▶ 放映本集全部镜头
               </button>
+              <button class="btn btn-sm btn-outline" id="btnToolbarExport">
+                ⬇️ 导出整集
+              </button>
             </div>
+          </div>
+
+          <!-- 分镜交互时间轴总览轨 -->
+          <div class="timeline-strip-container" id="storyboardTimelineStrip">
+            <div class="timeline-strip-header">
+              <span class="strip-title">⏱️ 镜头时序轨（支持卡片拖拽调整放映顺序）</span>
+              <span class="strip-total-time" id="stripTotalTime">总片长: 0.0 秒</span>
+            </div>
+            <div class="timeline-slots-wrap" id="timelineSlots"></div>
           </div>
 
           <!-- 分镜网格 -->
@@ -206,6 +220,11 @@
               </div>
             </div>
 
+            <!-- 电影分镜交互时间轴 -->
+            <div class="cinema-timeline-track" id="cinemaTimelineTrack">
+              <div class="timeline-empty-hint">暂无镜头，生成短剧后此处将呈现整集交互式时间轴</div>
+            </div>
+
             <!-- 放映机控制台 -->
             <div class="cinema-controls">
               <div class="cinema-progress">
@@ -231,6 +250,13 @@
                   <button class="cinema-btn" id="btnMuteToggle" title="静音切换">🔊</button>
                   <button class="cinema-btn" id="btnFullscreen" title="全屏放映">⛶</button>
                 </div>
+              </div>
+
+              <div class="cinema-shortcut-hints">
+                <span>快捷键: <kbd>Space</kbd> 播/暂</span>
+                <span><kbd>←</kbd> / <kbd>→</kbd> 切镜</span>
+                <span><kbd>F</kbd> 全屏</span>
+                <span><kbd>M</kbd> 静音</span>
               </div>
             </div>
           </div>
@@ -469,6 +495,63 @@
       <div class="modal-footer">
         <button class="btn btn-ghost" id="btnCancelAiSettings" type="button">取消</button>
         <button class="btn btn-primary" id="btnSaveAiSettings" type="button">保存设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 全片成片与素材导出模态框 -->
+  <div class="modal-backdrop hidden" id="exportModal">
+    <div class="modal-card export-modal-card">
+      <div class="modal-header">
+        <h3>🎬 导出整集短剧成片与素材</h3>
+        <button class="modal-close-btn" id="btnCloseExportModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="export-desc">
+          基于多模态流拼接引擎，将当前排序的全部镜头自动合成为无损整集母带，并生成连续对白字幕。
+        </p>
+        <div class="export-stats-row">
+          <div class="stat-pill">
+            <span class="label">分镜总数</span>
+            <span class="value" id="exportShotCount">0 镜</span>
+          </div>
+          <div class="stat-pill">
+            <span class="label">预计总片长</span>
+            <span class="value" id="exportTotalDuration">0 秒</span>
+          </div>
+          <div class="stat-pill">
+            <span class="label">画质规格</span>
+            <span class="value">1280x720 25fps</span>
+          </div>
+        </div>
+        <div class="export-options">
+          <label class="export-opt-card active">
+            <input type="checkbox" id="exportIncludeSubtitles" checked>
+            <div class="opt-text">
+              <strong>外挂与内嵌双轨字幕</strong>
+              <small>生成对白时序连续的 WebVTT 文件并在 MP4 中压制字幕</small>
+            </div>
+          </label>
+        </div>
+        <div class="export-action-box">
+          <button class="btn btn-primary btn-block btn-lg" id="btnStartExport">
+            ⚡ 开始合成并导出整集
+          </button>
+        </div>
+        <div class="export-progress-box hidden" id="exportProgressBox">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill animate-pulse" id="exportProgressFill" style="width: 100%"></div>
+          </div>
+          <p class="export-status-text" id="exportStatusText">正在执行 FFmpeg 多镜头无损拼接与字幕合并...</p>
+        </div>
+        <div class="export-result-box hidden" id="exportResultBox">
+          <div class="result-badge success">✨ 导出合成成功！</div>
+          <div class="result-links">
+            <a class="btn btn-outline" id="linkDownloadMp4" href="#" download>📥 下载完整 MP4 成片</a>
+            <a class="btn btn-ghost" id="linkDownloadVtt" href="#" download>💬 下载全片 WebVTT 字幕</a>
+            <a class="btn btn-ghost" id="linkDownloadManifest" href="#" download>📜 下载分镜清单 JSON</a>
+          </div>
+        </div>
       </div>
     </div>
   </div>

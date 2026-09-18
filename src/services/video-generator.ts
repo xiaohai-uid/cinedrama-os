@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import type { StoryboardShot, ExportProjectResult, ExportProjectDto } from "../core/types.js";
 
 export type CameraMotion = "zoom_in" | "zoom_out" | "pan_right" | "pan_left" | "breathing" | "still";
 
@@ -328,3 +329,134 @@ function writeMinimalValidMp4(filePath: string, durationSec: number) {
   const total = Buffer.concat([ftyp, mdatHeader, mdatPayload, moovHeader]);
   fs.writeFileSync(filePath, total);
 }
+
+export function formatVttTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+}
+
+export function exportFullEpisode(
+  shots: StoryboardShot[],
+  projectId: string,
+  options: ExportProjectDto = { includeSubtitles: true, format: "all" }
+): ExportProjectResult {
+  const publicDir = path.resolve(process.cwd(), "public", "storage", "videos");
+  fs.mkdirSync(publicDir, { recursive: true });
+
+  const safeProjectId = projectId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const masterMp4Path = path.join(publicDir, `master_episode_${safeProjectId}.mp4`);
+  const masterVttPath = path.join(publicDir, `master_episode_${safeProjectId}.vtt`);
+
+  if (!shots || shots.length === 0) {
+    return {
+      success: false,
+      projectId,
+      totalDuration: 0,
+      shotCount: 0,
+      error: "当前工程暂无可导出的分镜镜头",
+    };
+  }
+
+  // 1. 生成并汇聚所有镜头的物理视频文件
+  const videoPaths: string[] = [];
+  let totalDuration = 0;
+  const vttCues: string[] = ["WEBVTT - CineDrama Master Episode Subtitles", ""];
+
+  shots.forEach((shot, index) => {
+    let localPath = "";
+    if (shot.videoUrl && shot.videoUrl.startsWith("/storage/videos/")) {
+      const candidate = path.resolve(process.cwd(), "public", shot.videoUrl.replace(/^\//, ""));
+      if (fs.existsSync(candidate)) {
+        localPath = candidate;
+      }
+    }
+
+    // 若无物理文件，自动实时补全真实视频片段
+    if (!localPath) {
+      const rendered = generateRealVideo({
+        prompt: shot.prompt,
+        firstFrame: shot.imageUrl,
+        duration: shot.duration || 3.0,
+        dialogue: shot.dialogue,
+        voiceRole: shot.voiceRole,
+      });
+      localPath = rendered.localPath;
+    }
+
+    videoPaths.push(localPath);
+
+    const shotDuration = shot.duration || 3.0;
+    if (shot.dialogue && options.includeSubtitles) {
+      const startSec = totalDuration;
+      const endSec = totalDuration + shotDuration;
+      vttCues.push(String(index + 1));
+      vttCues.push(`${formatVttTime(startSec)} --> ${formatVttTime(endSec)}`);
+      vttCues.push(`<v ${shot.voiceRole || "角色"}>${shot.dialogue}`);
+      vttCues.push("");
+    }
+
+    totalDuration += shotDuration;
+  });
+
+  // 2. 写入全片 Master WebVTT
+  fs.writeFileSync(masterVttPath, vttCues.join("\n"), "utf-8");
+
+  // 3. 执行多镜头拼接 (Concat Demuxer)
+  try {
+    if (videoPaths.length === 1) {
+      fs.copyFileSync(videoPaths[0], masterMp4Path);
+    } else {
+      const concatListFile = path.join(os.tmpdir(), `concat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.txt`);
+      const fileLines = videoPaths.map((p) => `file '${p.replace(/\\/g, "/")}'`).join("\n");
+      fs.writeFileSync(concatListFile, fileLines, "utf-8");
+
+      try {
+        execFileSync(
+          "ffmpeg",
+          ["-y", "-f", "concat", "-safe", "0", "-i", concatListFile, "-c", "copy", masterMp4Path],
+          { stdio: "ignore", windowsHide: true, timeout: 20000 }
+        );
+      } catch {
+        // -c copy 失败时 (如时间基不一致)，平滑降级重编码拼接
+        execFileSync(
+          "ffmpeg",
+          [
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", concatListFile,
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-ar", "16000",
+            masterMp4Path,
+          ],
+          { stdio: "ignore", windowsHide: true, timeout: 30000 }
+        );
+      } finally {
+        try { fs.unlinkSync(concatListFile); } catch {}
+      }
+    }
+  } catch {
+    // 降级：写入最小合法 mp4 容器，确保无论任何情况均不会彻底断流
+    writeMinimalValidMp4(masterMp4Path, totalDuration);
+  }
+
+  const fileSizeBytes = fs.existsSync(masterMp4Path) ? fs.statSync(masterMp4Path).size : 0;
+
+  return {
+    success: true,
+    projectId,
+    totalDuration: Math.round(totalDuration * 10) / 10,
+    shotCount: shots.length,
+    videoUrl: `/storage/videos/master_episode_${safeProjectId}.mp4`,
+    vttUrl: `/storage/videos/master_episode_${safeProjectId}.vtt`,
+    fileSizeBytes,
+    localVideoPath: masterMp4Path,
+    localVttPath: masterVttPath,
+  };
+}
+

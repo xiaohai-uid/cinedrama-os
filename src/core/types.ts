@@ -651,3 +651,32 @@ export const ProjectContinuityLedgerSchema = z.object({
 });
 export type ProjectContinuityLedger = z.infer<typeof ProjectContinuityLedgerSchema>;
 
+// ============================================================================
+// 12. 分镜重排与全片导出契约 (Reorder & Master Export DTOs)
+// ============================================================================
+
+export const ReorderShotsDtoSchema = z.object({
+  shotIds: z.array(z.string().min(1)).min(1),
+});
+export type ReorderShotsDto = z.infer<typeof ReorderShotsDtoSchema>;
+
+export const ExportProjectDtoSchema = z.object({
+  includeSubtitles: z.boolean().optional().default(true),
+  format: z.enum(["mp4", "vtt", "all"]).optional().default("all"),
+});
+export type ExportProjectDto = z.infer<typeof ExportProjectDtoSchema>;
+
+export const ExportProjectResultSchema = z.object({
+  success: z.boolean(),
+  projectId: z.string(),
+  totalDuration: z.number(),
+  shotCount: z.number(),
+  videoUrl: z.string().optional(),
+  vttUrl: z.string().optional(),
+  fileSizeBytes: z.number().optional(),
+  localVideoPath: z.string().optional(),
+  localVttPath: z.string().optional(),
+  error: z.string().optional(),
+});
+export type ExportProjectResult = z.infer<typeof ExportProjectResultSchema>;
+

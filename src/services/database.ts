@@ -508,6 +508,20 @@ export class DatabaseService {
     });
   }
 
+  public reorderShots(projectId: string, shotIdsInOrder: string[]): StoryboardShot[] {
+    const updateStmt = this.db.prepare("UPDATE storyboard_shots SET shot_index = ?, updated_at = ? WHERE id = ? AND project_id = ?");
+    const now = Date.now();
+
+    const runTransaction = this.db.transaction((ids: string[]) => {
+      ids.forEach((id, idx) => {
+        updateStmt.run(idx + 1, now, id, projectId);
+      });
+    });
+
+    runTransaction(shotIdsInOrder);
+    return this.listShotsByProject(projectId);
+  }
+
   public close() {
     this.db.close();
   }

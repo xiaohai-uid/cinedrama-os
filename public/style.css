@@ -1597,5 +1597,419 @@ body {
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
+/* ==============================================================================
+   时间轴交互、卡片拖拽重排与导出中心样式 (Timeline, Drag & Export UI)
+   ============================================================================== */
+
+/* 1. 导出主按键与头部按键 */
+.btn-export {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.25));
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-export:hover {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.35), rgba(99, 102, 241, 0.4));
+  border-color: #38bdf8;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+
+/* 2. 分镜台顶部交互式时序总览条 (Timeline Strip) */
+.timeline-strip-container {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timeline-strip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.strip-title {
+  color: #94a3b8;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.strip-total-time {
+  color: #38bdf8;
+  font-weight: 700;
+  background: rgba(56, 189, 248, 0.12);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.timeline-slots-wrap {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.timeline-slots-wrap::-webkit-scrollbar {
+  height: 4px;
+}
+.timeline-slots-wrap::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.timeline-slot-chip {
+  flex: 0 0 auto;
+  min-width: 90px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-slot-chip:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.5);
+  transform: translateY(-2px);
+}
+
+.timeline-slot-chip.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+.slot-chip-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.slot-chip-dur {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+/* 3. 放映厅时间轴卡槽轨 (Cinema Timeline Track) */
+.cinema-timeline-track {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  margin: 12px 0;
+  align-items: center;
+}
+
+.cinema-timeline-track::-webkit-scrollbar {
+  height: 5px;
+}
+.cinema-timeline-track::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.timeline-empty-hint {
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.cinema-timeline-slot {
+  flex: 0 0 110px;
+  height: 64px;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  background: #0f172a;
+}
+
+.cinema-timeline-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.65;
+  transition: opacity 0.2s ease;
+}
+
+.cinema-timeline-slot:hover img {
+  opacity: 0.95;
+}
+
+.cinema-timeline-slot.active {
+  border-color: #38bdf8;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
+  transform: scale(1.04);
+}
+
+.cinema-timeline-slot.active img {
+  opacity: 1;
+}
+
+.slot-badge-idx {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #38bdf8;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.slot-badge-time {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #e2e8f0;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* 4. 键盘快捷键提示 (Shortcut Hints) */
+.cinema-shortcut-hints {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 8px;
+}
+
+.cinema-shortcut-hints kbd {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+/* 5. 分镜卡片拖拽与重排样式 (Drag & Drop Styling) */
+.shot-card {
+  position: relative;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.shot-card.is-dragging {
+  opacity: 0.4;
+  border: 2px dashed #38bdf8;
+  transform: scale(0.97);
+}
+
+.shot-card.drag-over {
+  border: 2px solid #38bdf8;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+  transform: translateY(-4px);
+}
+
+.shot-drag-handle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #94a3b8;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: grab;
+  z-index: 5;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.shot-drag-handle:hover {
+  background: rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+}
+
+.shot-drag-handle:active {
+  cursor: grabbing;
+}
+
+.shot-shift-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.btn-shift-shot {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-shift-shot:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+/* 6. 导出模态框 (Export Modal) */
+.export-modal-card {
+  max-width: 540px;
+  width: 90%;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+}
+
+.export-desc {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.export-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.stat-pill {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-pill .label {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.stat-pill .value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.export-options {
+  margin-bottom: 18px;
+}
+
+.export-opt-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.export-opt-card strong {
+  display: block;
+  font-size: 13px;
+  color: #f1f5f9;
+  margin-bottom: 2px;
+}
+
+.export-opt-card small {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.export-action-box {
+  margin-bottom: 14px;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-lg {
+  padding: 12px 20px;
+  font-size: 15px;
+}
+
+.export-progress-box {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.export-status-text {
+  font-size: 12px;
+  color: #38bdf8;
+  margin-top: 8px;
+}
+
+.export-result-box {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.result-badge.success {
+  color: #34d399;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.result-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+}
+
+.result-links a {
+  text-decoration: none;
+}
+
+
 
 

@@ -205,6 +205,28 @@
     reasonPacingConsistency: document.getElementById('reasonPacingConsistency'),
     evalHighlightsList: document.getElementById('evalHighlightsList'),
     evalImprovementsList: document.getElementById('evalImprovementsList'),
+    // 分镜时序轨
+    storyboardTimelineStrip: document.getElementById('storyboardTimelineStrip'),
+    stripTotalTime: document.getElementById('stripTotalTime'),
+    timelineSlots: document.getElementById('timelineSlots'),
+    btnToolbarExport: document.getElementById('btnToolbarExport'),
+    // 放映厅时间轴
+    cinemaTimelineTrack: document.getElementById('cinemaTimelineTrack'),
+    // 导出整集
+    btnOpenExportModal: document.getElementById('btnOpenExportModal'),
+    exportModal: document.getElementById('exportModal'),
+    btnCloseExportModal: document.getElementById('btnCloseExportModal'),
+    exportShotCount: document.getElementById('exportShotCount'),
+    exportTotalDuration: document.getElementById('exportTotalDuration'),
+    exportIncludeSubtitles: document.getElementById('exportIncludeSubtitles'),
+    btnStartExport: document.getElementById('btnStartExport'),
+    exportProgressBox: document.getElementById('exportProgressBox'),
+    exportProgressFill: document.getElementById('exportProgressFill'),
+    exportStatusText: document.getElementById('exportStatusText'),
+    exportResultBox: document.getElementById('exportResultBox'),
+    linkDownloadMp4: document.getElementById('linkDownloadMp4'),
+    linkDownloadVtt: document.getElementById('linkDownloadVtt'),
+    linkDownloadManifest: document.getElementById('linkDownloadManifest'),
   };
 
   // ==========================================================================
@@ -296,6 +318,31 @@
     dom.btnRunEval?.addEventListener('click', () => {
       runEvaluation(state.currentProjectId, true);
     });
+
+    // 导出整集模态框事件
+    dom.btnOpenExportModal?.addEventListener('click', openExportModal);
+    dom.btnToolbarExport?.addEventListener('click', openExportModal);
+    dom.btnCloseExportModal?.addEventListener('click', closeExportModal);
+    dom.exportModal?.addEventListener('click', (e) => {
+      if (e.target === dom.exportModal) closeExportModal();
+    });
+    dom.btnStartExport?.addEventListener('click', startExport);
+
+    // 放映厅音量与时间轴跳转
+    dom.btnMuteToggle?.addEventListener('click', toggleMute);
+    dom.cinemaTrack?.addEventListener('click', handleSeekCinema);
+
+    // 视频与音频事件监听（实现精确事件驱动连续放映与时间轴精确同步）
+    if (dom.cinemaVideo) {
+      dom.cinemaVideo.addEventListener('timeupdate', updateCinemaProgressFromMedia);
+      dom.cinemaVideo.addEventListener('ended', onCinemaMediaEnded);
+    }
+    if (dom.globalAudioPlayer) {
+      dom.globalAudioPlayer.addEventListener('ended', onCinemaMediaEnded);
+    }
+
+    // 全局快捷键监听
+    initKeyboardShortcuts();
   }
 
   function loadTemplate(key) {
@@ -366,6 +413,17 @@
   async function loadProjectData(projectId) {
     if (!projectId) return;
     try {
+      let dbShots = [];
+      try {
+        const shotsRes = await fetch(apiUrl(`/api/projects/${projectId}/shots`));
+        const shotsData = await shotsRes.json();
+        if (shotsData.success && Array.isArray(shotsData.shots)) {
+          dbShots = shotsData.shots;
+        }
+      } catch (err) {
+        console.warn('获取项目分镜列表失败:', err);
+      }
+
       const res = await fetch(apiUrl(`/api/pipeline/jobs?projectId=${projectId}`));
       const data = await res.json();
       const jobs = data.jobs || [];
@@ -374,7 +432,13 @@
         state.currentJobId = latestJob.id;
         const detailRes = await fetch(apiUrl(`/api/pipeline/jobs/${latestJob.id}`));
         const detailData = await detailRes.json();
-        renderJobOutputs(detailData.job);
+        renderJobOutputs(detailData.job, dbShots);
+        loadEvaluation(projectId);
+      } else if (dbShots.length > 0) {
+        state.shots = dbShots;
+        dom.shotsCountBadge.innerText = state.shots.length;
+        renderStoryboardGrid(state.shots);
+        loadCinemaShot(0);
         loadEvaluation(projectId);
       } else {
         renderEmptyState();
@@ -498,7 +562,9 @@
   // ==========================================================================
   // 成果渲染与视图装配
   // ==========================================================================
-  function renderJobOutputs(job) {
+  let draggedCardIndex = null;
+
+  function renderJobOutputs(job, dbShots = []) {
     if (!job || !job.output) return;
     state.jobData = job.output;
 
@@ -508,19 +574,35 @@
     const renderedVideos = job.output['step-render-videos'];
 
     const rawShots = storyboard?.shots || [];
-    state.shots = rawShots.map((shot) => {
+    let shots = rawShots.map((shot, index) => {
       const imgInfo = renderedImages?.shots?.find((s) => s.shotIndex === shot.shotIndex);
       const audioInfo = dubbedAudio?.shots?.find((s) => s.shotIndex === shot.shotIndex);
       const videoInfo = renderedVideos?.shots?.find((s) => s.shotIndex === shot.shotIndex);
 
+      const dbMatch = dbShots.find((d) => d.shotIndex === shot.shotIndex);
+
       return {
         ...shot,
-        imageUrl: imgInfo?.imageUrl || null,
-        audioUrl: audioInfo?.audioUrl || null,
-        videoUrl: videoInfo?.videoUrl || null,
+        id: dbMatch?.id || shot.id || `shot_${state.currentJobId || 'job'}_${shot.shotIndex || index + 1}`,
+        imageUrl: imgInfo?.imageUrl || dbMatch?.imageUrl || null,
+        audioUrl: audioInfo?.audioUrl || dbMatch?.audioUrl || null,
+        videoUrl: videoInfo?.videoUrl || dbMatch?.videoUrl || null,
       };
     });
 
+    if (dbShots.length > 0) {
+      const dbOrderMap = new Map(dbShots.map((s, idx) => [s.id, idx]));
+      shots.sort((a, b) => {
+        const orderA = dbOrderMap.has(a.id) ? dbOrderMap.get(a.id) : a.shotIndex;
+        const orderB = dbOrderMap.has(b.id) ? dbOrderMap.get(b.id) : b.shotIndex;
+        return orderA - orderB;
+      });
+      shots.forEach((s, idx) => {
+        s.shotIndex = idx + 1;
+      });
+    }
+
+    state.shots = shots;
     dom.shotsCountBadge.innerText = state.shots.length;
 
     renderStoryboardGrid(state.shots);
@@ -532,16 +614,153 @@
     }
   }
 
+  function renderTimeline() {
+    const totalDuration = state.shots.reduce((acc, s) => acc + (Number(s.duration) || 3.5), 0);
+
+    // 1. Storyboard 时序总览条
+    if (dom.stripTotalTime) {
+      dom.stripTotalTime.innerText = `总片长: ${totalDuration.toFixed(1)} 秒 (${state.shots.length} 镜)`;
+    }
+
+    // 2. Storyboard 时间轴卡槽轨
+    if (dom.timelineSlots) {
+      dom.timelineSlots.innerHTML = '';
+      if (state.shots.length === 0) {
+        dom.timelineSlots.innerHTML = '<span class="timeline-empty-hint" style="color:#64748b;font-size:12px;">暂无分镜时序</span>';
+      } else {
+        state.shots.forEach((shot, idx) => {
+          const chip = document.createElement('div');
+          chip.className = `timeline-slot-chip ${idx === state.cinema.currentIndex ? 'active' : ''}`;
+          chip.setAttribute('title', `点击跳转到第 ${idx + 1} 镜 · ${escapeHtml(shot.voiceRole || '角色')}`);
+          chip.innerHTML = `
+            <div class="slot-chip-top">
+              <span>#${idx + 1}</span>
+              <span class="slot-chip-dur">${(shot.duration || 3.5).toFixed(1)}s</span>
+            </div>
+            <div class="slot-chip-role" style="font-size:10px; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+              ${escapeHtml(shot.voiceRole || '镜头 ' + (idx + 1))}
+            </div>
+          `;
+          chip.addEventListener('click', () => {
+            switchTab('cinema');
+            loadCinemaShot(idx);
+          });
+          dom.timelineSlots.appendChild(chip);
+        });
+      }
+    }
+
+    // 3. 放映厅时间轴卡槽轨
+    if (dom.cinemaTimelineTrack) {
+      dom.cinemaTimelineTrack.innerHTML = '';
+      if (state.shots.length === 0) {
+        dom.cinemaTimelineTrack.innerHTML = '<div class="timeline-empty-hint">暂无镜头，生成短剧后此处将呈现整集交互式时间轴</div>';
+      } else {
+        state.shots.forEach((shot, idx) => {
+          const slot = document.createElement('div');
+          slot.className = `cinema-timeline-slot ${idx === state.cinema.currentIndex ? 'active' : ''}`;
+          slot.setAttribute('title', `点击跳转到第 ${idx + 1} 镜`);
+          const imgUrl = shot.imageUrl || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MDAiIGhlaWdodD0iNDUwIj48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjQ1MCIgZmlsbD0iIzE0MTcyMiIvPjwvc3ZnPg==';
+          slot.innerHTML = `
+            <img src="${imgUrl}" alt="镜 ${idx + 1}">
+            <span class="slot-badge-idx">#${idx + 1}</span>
+            <span class="slot-badge-time">${(shot.duration || 3.5).toFixed(1)}s</span>
+          `;
+          slot.addEventListener('click', () => {
+            loadCinemaShot(idx);
+            if (state.cinema.isPlaying) {
+              playCurrentShotSequence();
+            }
+          });
+          dom.cinemaTimelineTrack.appendChild(slot);
+        });
+      }
+    }
+  }
+
+  async function handleReorderShots(fromIndex, toIndex) {
+    if (fromIndex === toIndex || !state.shots || state.shots.length === 0) return;
+    const moved = state.shots.splice(fromIndex, 1)[0];
+    state.shots.splice(toIndex, 0, moved);
+
+    state.shots.forEach((s, i) => {
+      s.shotIndex = i + 1;
+    });
+
+    renderStoryboardGrid(state.shots);
+    loadCinemaShot(Math.min(state.cinema.currentIndex, state.shots.length - 1));
+
+    if (state.currentProjectId) {
+      const shotIds = state.shots.map((s) => s.id).filter(Boolean);
+      if (shotIds.length === state.shots.length) {
+        try {
+          const res = await fetch(apiUrl(`/api/projects/${state.currentProjectId}/shots/reorder`), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shotIds }),
+          });
+          const data = await res.json();
+          if (data.shots) {
+            data.shots.forEach((dbShot, i) => {
+              state.shots[i].shotIndex = dbShot.shotIndex;
+              state.shots[i].id = dbShot.id;
+            });
+            renderTimeline();
+          }
+        } catch (e) {
+          console.warn('保存分镜排序至数据库失败:', e);
+        }
+      }
+    }
+  }
+
   function renderStoryboardGrid(shots) {
     dom.storyboardGrid.innerHTML = '';
     if (shots.length === 0) {
       renderEmptyState();
+      renderTimeline();
       return;
     }
 
     shots.forEach((shot, index) => {
       const card = document.createElement('div');
       card.className = 'shot-card';
+      card.setAttribute('draggable', 'true');
+      card.dataset.index = String(index);
+      if (shot.id) card.dataset.shotId = shot.id;
+
+      // HTML5 原生拖拽事件监听
+      card.addEventListener('dragstart', (e) => {
+        draggedCardIndex = index;
+        card.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(index));
+      });
+
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        card.classList.add('drag-over');
+      });
+
+      card.addEventListener('dragleave', () => {
+        card.classList.remove('drag-over');
+      });
+
+      card.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        card.classList.remove('drag-over');
+        const targetIndex = index;
+        if (draggedCardIndex !== null && draggedCardIndex !== targetIndex) {
+          await handleReorderShots(draggedCardIndex, targetIndex);
+        }
+        draggedCardIndex = null;
+      });
+
+      card.addEventListener('dragend', () => {
+        card.classList.remove('is-dragging');
+        document.querySelectorAll('.shot-card.drag-over').forEach((el) => el.classList.remove('drag-over'));
+      });
 
       const motionLabels = {
         zoom_in: '🎥 缓推特写',
@@ -557,21 +776,26 @@
 
       card.innerHTML = `
         <div class="shot-image-wrapper">
-          <img src="${imageSrc}" alt="镜头 ${shot.shotIndex}">
+          <img src="${imageSrc}" alt="镜头 ${shot.shotIndex || index + 1}">
+          <span class="shot-drag-handle" title="按住拖拽排序">⋮⋮</span>
           <div class="shot-badges">
-            <span class="shot-num">镜 #${shot.shotIndex}</span>
+            <span class="shot-num">镜 #${shot.shotIndex || index + 1}</span>
             <span class="shot-camera">${shot.cameraAngle || '中景'}</span>
             <span class="shot-motion">${motionBadge}</span>
+            <div class="shot-shift-actions">
+              <button class="btn-shift-shot btn-shift-up" data-idx="${index}" title="前移此镜头" ${index === 0 ? 'disabled style="opacity:0.3;cursor:not-allowed"' : ''}>⬆️</button>
+              <button class="btn-shift-shot btn-shift-down" data-idx="${index}" title="后移此镜头" ${index === shots.length - 1 ? 'disabled style="opacity:0.3;cursor:not-allowed"' : ''}>⬇️</button>
+            </div>
           </div>
           <span class="shot-duration">${shot.duration || 3.5}s</span>
         </div>
         <div class="shot-content">
-          <div class="shot-prompt" title="${shot.prompt}">${shot.prompt}</div>
+          <div class="shot-prompt" title="${escapeHtml(shot.prompt)}">${escapeHtml(shot.prompt)}</div>
           ${
             shot.dialogue
               ? `<div class="shot-dialogue-bubble">
-                  <span class="shot-speaker">${shot.voiceRole || '角色'}:</span>
-                  "${shot.dialogue}"
+                  <span class="shot-speaker">${escapeHtml(shot.voiceRole || '角色')}:</span>
+                  "${escapeHtml(shot.dialogue)}"
                  </div>`
               : ''
           }
@@ -608,9 +832,26 @@
         </div>
       `;
 
-      card.querySelector('.shot-image-wrapper').addEventListener('click', () => {
-        openModal(imageSrc, `镜头 #${shot.shotIndex} · ${shot.prompt}`);
+      card.querySelector('.shot-image-wrapper').addEventListener('click', (e) => {
+        if (e.target.closest('.shot-drag-handle') || e.target.closest('.btn-shift-shot')) return;
+        openModal(imageSrc, `镜头 #${shot.shotIndex || index + 1} · ${shot.prompt}`);
       });
+
+      const btnUp = card.querySelector('.btn-shift-up');
+      if (btnUp && index > 0) {
+        btnUp.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleReorderShots(index, index - 1);
+        });
+      }
+
+      const btnDown = card.querySelector('.btn-shift-down');
+      if (btnDown && index < shots.length - 1) {
+        btnDown.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleReorderShots(index, index + 1);
+        });
+      }
 
       const voiceBtn = card.querySelector('.btn-play-voice');
       if (voiceBtn) {
@@ -632,6 +873,8 @@
 
       dom.storyboardGrid.appendChild(card);
     });
+
+    renderTimeline();
   }
 
   function renderScript(skeleton, script) {
@@ -703,11 +946,19 @@
       </div>
     `;
     dom.shotsCountBadge.innerText = '0';
+    renderTimeline();
   }
 
   // ==========================================================================
-  // 全片放映厅 (Cinema Theater) 播放器逻辑
+  // 全片放映厅 (Cinema Theater) 播放器与时序控制逻辑
   // ==========================================================================
+  function formatSeconds(sec) {
+    if (isNaN(sec) || sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
   function loadCinemaShot(index) {
     if (!state.shots || state.shots.length === 0) return;
     if (index < 0) index = 0;
@@ -718,10 +969,24 @@
 
     dom.cinemaPlaceholder.classList.add('hidden');
     dom.cinemaShotIndicator.innerText = `镜 ${index + 1} / ${state.shots.length}`;
-    dom.cinemaDurationInfo.innerText = `00:0${Math.round(shot.duration || 3)} 秒`;
+
+    const totalDuration = state.shots.reduce((acc, s) => acc + (Number(s.duration) || 3.5), 0) || 1;
+    const baseTime = state.shots.slice(0, index).reduce((acc, s) => acc + (Number(s.duration) || 3.5), 0);
+    dom.cinemaDurationInfo.innerText = `${formatSeconds(baseTime)} / ${formatSeconds(totalDuration)}`;
 
     const pct = ((index + 1) / state.shots.length) * 100;
     dom.cinemaTrackFill.style.width = `${pct}%`;
+
+    // 联动高亮时序轨卡槽
+    document.querySelectorAll('.timeline-slot-chip').forEach((el, i) => {
+      el.classList.toggle('active', i === index);
+    });
+    document.querySelectorAll('.cinema-timeline-slot').forEach((el, i) => {
+      el.classList.toggle('active', i === index);
+      if (i === index) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    });
 
     if (shot.videoUrl) {
       dom.cinemaVideo.src = shot.videoUrl;
@@ -766,11 +1031,50 @@
     dom.btnPlayPause.innerText = '▶';
     if (state.cinema.timer) {
       clearTimeout(state.cinema.timer);
+      state.cinema.timer = null;
     }
     dom.globalAudioPlayer.pause();
     if (dom.cinemaVideo) {
       dom.cinemaVideo.pause();
     }
+  }
+
+  function advanceCinemaShot() {
+    if (state.cinema.timer) {
+      clearTimeout(state.cinema.timer);
+      state.cinema.timer = null;
+    }
+    if (state.cinema.currentIndex < state.shots.length - 1) {
+      state.cinema.currentIndex++;
+      loadCinemaShot(state.cinema.currentIndex);
+      if (state.cinema.isPlaying) {
+        playCurrentShotSequence();
+      }
+    } else {
+      pauseCinemaPlay();
+      state.cinema.currentIndex = 0;
+      loadCinemaShot(0);
+    }
+  }
+
+  function onCinemaMediaEnded() {
+    if (!state.cinema.isPlaying) return;
+    advanceCinemaShot();
+  }
+
+  function updateCinemaProgressFromMedia() {
+    if (!state.shots || state.shots.length === 0) return;
+    const currentIdx = state.cinema.currentIndex;
+    const baseTime = state.shots.slice(0, currentIdx).reduce((acc, s) => acc + (Number(s.duration) || 3.5), 0);
+    const totalDuration = state.shots.reduce((acc, s) => acc + (Number(s.duration) || 3.5), 0) || 1;
+    let currentInMedia = 0;
+    if (dom.cinemaVideo && !dom.cinemaVideo.classList.contains('hidden')) {
+      currentInMedia = dom.cinemaVideo.currentTime || 0;
+    }
+    const currentTotalSec = baseTime + currentInMedia;
+    const pct = Math.min(100, (currentTotalSec / totalDuration) * 100);
+    dom.cinemaTrackFill.style.width = `${pct}%`;
+    dom.cinemaDurationInfo.innerText = `${formatSeconds(currentTotalSec)} / ${formatSeconds(totalDuration)}`;
   }
 
   function playCurrentShotSequence() {
@@ -781,14 +1085,30 @@
       return;
     }
 
+    if (state.cinema.timer) {
+      clearTimeout(state.cinema.timer);
+      state.cinema.timer = null;
+    }
+
     loadCinemaShot(state.cinema.currentIndex);
+
+    const shotDuration = Number(current.duration) || 3.5;
 
     if (current.videoUrl) {
       dom.cinemaVideo.src = current.videoUrl;
       dom.cinemaVideo.classList.remove('hidden');
       if (dom.cinemaImage) dom.cinemaImage.classList.add('hidden');
+      dom.globalAudioPlayer.pause();
       dom.cinemaVideo.currentTime = 0;
-      dom.cinemaVideo.play().catch(() => {});
+      dom.cinemaVideo.play().catch((err) => {
+        console.warn('Video playback autoplay notice:', err);
+      });
+      // 视频结束由 ended 事件精确触发，定时器仅作为网络卡死时的超时兜底保护
+      state.cinema.timer = setTimeout(() => {
+        if (state.cinema.isPlaying && (dom.cinemaVideo.ended || dom.cinemaVideo.paused)) {
+          advanceCinemaShot();
+        }
+      }, (shotDuration + 1.5) * 1000);
     } else {
       if (dom.cinemaVideo) {
         dom.cinemaVideo.pause();
@@ -800,22 +1120,16 @@
       }
       if (current.audioUrl) {
         dom.globalAudioPlayer.src = current.audioUrl;
-        dom.globalAudioPlayer.play().catch(() => {});
+        dom.globalAudioPlayer.currentTime = 0;
+        dom.globalAudioPlayer.play().catch((err) => {
+          console.warn('Audio playback notice:', err);
+        });
       }
+      // 静止画面按设有时长推进
+      state.cinema.timer = setTimeout(() => {
+        advanceCinemaShot();
+      }, shotDuration * 1000);
     }
-
-    const durationMs = (current.duration || 3.5) * 1000;
-
-    state.cinema.timer = setTimeout(() => {
-      if (state.cinema.currentIndex < state.shots.length - 1) {
-        state.cinema.currentIndex++;
-        playCurrentShotSequence();
-      } else {
-        pauseCinemaPlay();
-        state.cinema.currentIndex = 0;
-        loadCinemaShot(0);
-      }
-    }, durationMs);
   }
 
   function stepCinemaShot(delta) {
@@ -826,11 +1140,178 @@
     }
   }
 
+  function handleSeekCinema(e) {
+    if (!state.shots || state.shots.length === 0) return;
+    const rect = dom.cinemaTrack.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    const totalDuration = state.shots.reduce((acc, s) => acc + (Number(s.duration) || 3.5), 0);
+    const targetSeconds = ratio * totalDuration;
+
+    let accumulated = 0;
+    let targetIndex = 0;
+    for (let i = 0; i < state.shots.length; i++) {
+      const d = Number(state.shots[i].duration) || 3.5;
+      if (targetSeconds <= accumulated + d || i === state.shots.length - 1) {
+        targetIndex = i;
+        break;
+      }
+      accumulated += d;
+    }
+
+    loadCinemaShot(targetIndex);
+    if (dom.cinemaVideo && !dom.cinemaVideo.classList.contains('hidden')) {
+      const withinShotSec = Math.max(0, targetSeconds - accumulated);
+      dom.cinemaVideo.currentTime = withinShotSec;
+    }
+    if (state.cinema.isPlaying) {
+      playCurrentShotSequence();
+    }
+  }
+
+  function toggleMute() {
+    const isMuted = dom.cinemaVideo ? !dom.cinemaVideo.muted : false;
+    if (dom.cinemaVideo) dom.cinemaVideo.muted = isMuted;
+    if (dom.globalAudioPlayer) dom.globalAudioPlayer.muted = isMuted;
+    if (dom.btnMuteToggle) {
+      dom.btnMuteToggle.innerText = isMuted ? '🔇' : '🔊';
+      dom.btnMuteToggle.title = isMuted ? '取消静音 (M)' : '静音 (M)';
+    }
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      dom.cinemaScreen.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  }
+
+  function initKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') {
+        return;
+      }
+      if (dom.imageModal && !dom.imageModal.classList.contains('hidden')) return;
+      if (dom.aiSettingsModal && !dom.aiSettingsModal.classList.contains('hidden')) return;
+      if (dom.exportModal && !dom.exportModal.classList.contains('hidden')) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        toggleCinemaPlay();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        stepCinemaShot(-1);
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        stepCinemaShot(1);
+      } else if (e.code === 'KeyF' || e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+      } else if (e.code === 'KeyM' || e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        toggleMute();
+      }
+    });
+  }
+
   function playShotVoice(index) {
     const shot = state.shots[index];
     if (shot && shot.audioUrl) {
       dom.globalAudioPlayer.src = shot.audioUrl;
       dom.globalAudioPlayer.play().catch((e) => console.log('Audio playback error:', e));
+    }
+  }
+
+  // ==========================================================================
+  // 全片成片导出模态框逻辑 (Export Hub)
+  // ==========================================================================
+  function openExportModal() {
+    if (!state.shots || state.shots.length === 0) {
+      alert('当前工程暂无分镜可供导出，请先生成漫剧！');
+      return;
+    }
+    const totalDuration = state.shots.reduce((acc, s) => acc + (Number(s.duration) || 3.5), 0);
+    if (dom.exportShotCount) dom.exportShotCount.innerText = `${state.shots.length} 镜`;
+    if (dom.exportTotalDuration) dom.exportTotalDuration.innerText = `${totalDuration.toFixed(1)} 秒`;
+    if (dom.exportProgressBox) dom.exportProgressBox.classList.add('hidden');
+    if (dom.exportResultBox) dom.exportResultBox.classList.add('hidden');
+    if (dom.btnStartExport) {
+      dom.btnStartExport.disabled = false;
+      dom.btnStartExport.innerText = '⚡ 开始合成并导出整集';
+    }
+    if (dom.exportModal) dom.exportModal.classList.remove('hidden');
+  }
+
+  function closeExportModal() {
+    if (dom.exportModal) dom.exportModal.classList.add('hidden');
+  }
+
+  async function startExport() {
+    if (!state.currentProjectId) {
+      alert('请先选择或创建工程！');
+      return;
+    }
+    if (dom.btnStartExport) {
+      dom.btnStartExport.disabled = true;
+      dom.btnStartExport.innerText = '⏳ 正在合成处理中...';
+    }
+    if (dom.exportProgressBox) dom.exportProgressBox.classList.remove('hidden');
+    if (dom.exportResultBox) dom.exportResultBox.classList.add('hidden');
+    if (dom.exportStatusText) dom.exportStatusText.innerText = '正在执行 FFmpeg 多镜头无损拼接与字幕合并...';
+
+    try {
+      const includeSubtitles = dom.exportIncludeSubtitles ? dom.exportIncludeSubtitles.checked : true;
+      const res = await fetch(apiUrl(`/api/projects/${state.currentProjectId}/export`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ includeSubtitles, format: 'mp4' }),
+      });
+      const data = await res.json();
+      if (!data.success || !data.export) {
+        throw new Error(data.error || '导出整集失败');
+      }
+
+      if (dom.exportProgressBox) dom.exportProgressBox.classList.add('hidden');
+      if (dom.exportResultBox) dom.exportResultBox.classList.remove('hidden');
+
+      if (dom.linkDownloadMp4) {
+        dom.linkDownloadMp4.href = apiUrl(data.export.videoUrl);
+        dom.linkDownloadMp4.setAttribute('download', `master_episode_${state.currentProjectId}.mp4`);
+      }
+      if (dom.linkDownloadVtt) {
+        dom.linkDownloadVtt.href = apiUrl(data.export.vttUrl);
+        dom.linkDownloadVtt.setAttribute('download', `master_episode_${state.currentProjectId}.vtt`);
+      }
+      if (dom.linkDownloadManifest) {
+        const manifestBlob = new Blob(
+          [
+            JSON.stringify(
+              {
+                projectId: state.currentProjectId,
+                exportedAt: new Date().toISOString(),
+                totalDuration: data.export.totalDuration,
+                shotCount: data.export.shotCount,
+                shots: state.shots,
+              },
+              null,
+              2
+            ),
+          ],
+          { type: 'application/json' }
+        );
+        dom.linkDownloadManifest.href = URL.createObjectURL(manifestBlob);
+        dom.linkDownloadManifest.setAttribute('download', `manifest_shots_${state.currentProjectId}.json`);
+      }
+    } catch (e) {
+      alert(`导出整集失败: ${e.message}`);
+      if (dom.exportProgressBox) dom.exportProgressBox.classList.add('hidden');
+    } finally {
+      if (dom.btnStartExport) {
+        dom.btnStartExport.disabled = false;
+        dom.btnStartExport.innerText = '⚡ 开始合成并导出整集';
+      }
     }
   }
 
