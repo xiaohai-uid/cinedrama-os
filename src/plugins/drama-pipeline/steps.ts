@@ -9,6 +9,7 @@ import {
   ScriptDialogueSchema,
   StoryboardPlanningSchema,
 } from "../../core/types.js";
+import { getStylePreset, enrichPromptWithStyle } from "../../services/style-presets.js";
 
 /**
  * 弹性提取大模型输出的 JSON 数据并经过 Zod Schema 严格校验
@@ -352,6 +353,10 @@ ${JSON.stringify(lines)}
         stepCtx.log(`[AI 自我纠偏成功] 经历 ${result.attempts} 次调用，模型成功修复分镜镜头数据！`);
       }
 
+      const stylePreset = getStylePreset(stepCtx.input?.stylePreset);
+      const defaultFilter = stylePreset.defaultFilter || "cinematic_teal_orange";
+      const defaultTransitions: any[] = ["fade", "dissolve", "fadewhite"];
+
       let shots = result.data.shots;
       // 规范化镜头索引与默认值
       shots = shots.slice(0, 3).map((s: any, idx: number) => ({
@@ -361,6 +366,8 @@ ${JSON.stringify(lines)}
         dialogue: s.dialogue || lines[idx]?.line || "",
         voiceRole: s.voiceRole || lines[idx]?.role || "旁白",
         duration: Number(s.duration) || 3.5,
+        filter: s.filter || defaultFilter,
+        transition: s.transition || defaultTransitions[idx % defaultTransitions.length],
       }));
 
       stepCtx.reportProgress(100, `已规划 ${shots.length} 个镜头分镜`);
@@ -393,15 +400,17 @@ export function createImageRenderStep(ctx: Context): PipelineStep {
         const shot = shots[i];
         stepCtx.log(`[渲染镜头 ${i + 1}/${total}] ${shot.prompt.slice(0, 30)}...`);
 
+        // 注入短剧画风提示词增强因子
+        let promptToRender = enrichPromptWithStyle(shot.prompt, stepCtx.input?.stylePreset);
+
         // 角色视觉特征锚定与防漂移强化
-        let promptToRender = shot.prompt;
         const visualConsistency = (ctx.root as any)?.visualConsistency || (ctx as any).reflect?.get?.("visualConsistency");
         if (visualConsistency) {
           const anchor =
             visualConsistency.getCharacterAnchor(stepCtx.projectId, shot.voiceRole || "") ||
             visualConsistency.getCharacterAnchors(stepCtx.projectId)[0];
           if (anchor) {
-            promptToRender = visualConsistency.autoEnrichPrompt(shot.prompt, anchor);
+            promptToRender = visualConsistency.autoEnrichPrompt(promptToRender, anchor);
             stepCtx.log(`[角色视觉锚定] 镜头 ${shot.shotIndex} 锁定 [${anchor.characterName}] 外观特征`);
           }
         }
@@ -421,6 +430,8 @@ export function createImageRenderStep(ctx: Context): PipelineStep {
         if (existing) {
           ctx.db.updateShotMedia(shotId, {
             imageUrl: img.url || img.base64,
+            filter: shot.filter || existing.filter,
+            transition: shot.transition || existing.transition,
             status: existing.status === "video_ready" ? "video_ready" : "image_ready",
           });
           record = ctx.db.getShot(shotId)!;
@@ -434,6 +445,8 @@ export function createImageRenderStep(ctx: Context): PipelineStep {
             dialogue: shot.dialogue,
             voiceRole: shot.voiceRole,
             duration: shot.duration,
+            filter: shot.filter,
+            transition: shot.transition,
             status: "image_ready",
             imageUrl: img.url || img.base64,
           });
@@ -588,6 +601,8 @@ export function createVideoRenderStep(ctx: Context): PipelineStep {
           cameraMotion: shot.cameraMotion,
           dialogue: shot.dialogue,
           voiceRole: shot.voiceRole,
+          filter: shot.filter || shotRecord?.filter,
+          transition: shot.transition || shotRecord?.transition,
         });
 
         const videoUrl = video.videoUrl || "";

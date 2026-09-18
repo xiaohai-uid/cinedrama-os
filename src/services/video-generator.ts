@@ -2,7 +2,15 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import type { StoryboardShot, ExportProjectResult, ExportProjectDto } from "../core/types.js";
+import {
+  StoryboardShotSchema,
+  ExportProjectDtoSchema,
+  type StoryboardShot,
+  type ExportProjectResult,
+  type ExportProjectDto,
+  type VisualFilter,
+  type TransitionEffect,
+} from "../core/types.js";
 
 export type CameraMotion = "zoom_in" | "zoom_out" | "pan_right" | "pan_left" | "breathing" | "still";
 
@@ -12,8 +20,28 @@ export interface VideoRenderOptions {
   firstFrame?: string;
   audioPathOrBase64?: string;
   cameraMotion?: CameraMotion;
+  filter?: VisualFilter;
+  transition?: TransitionEffect;
   dialogue?: string;
   voiceRole?: string;
+}
+
+export function getVisualFilterGraph(filter?: VisualFilter): string {
+  switch (filter) {
+    case "cinematic_teal_orange":
+      return "eq=contrast=1.15:brightness=-0.02:saturation=1.2,colorbalance=rs=0.08:gs=-0.03:bs=-0.08:rh=-0.04:gh=0.04:bh=0.12";
+    case "vintage_film":
+      return "eq=contrast=1.1:saturation=0.85,noise=alls=8:allf=t+u";
+    case "noir_bw":
+      return "format=gray,eq=contrast=1.3:brightness=-0.03";
+    case "cyberpunk_neon":
+      return "eq=contrast=1.2:saturation=1.45,colorbalance=rs=0.15:bs=0.2";
+    case "warm_glow":
+      return "eq=brightness=0.03:saturation=1.15,colorbalance=rs=0.1:gs=0.05:bs=-0.08";
+    case "normal":
+    default:
+      return "";
+  }
 }
 
 export function resolveCameraMotion(options: VideoRenderOptions): CameraMotion {
@@ -221,6 +249,12 @@ export function generateRealVideo(options: VideoRenderOptions): VideoRenderResul
       vfFilter = `zoompan=z='1.03+0.015*sin(on/10)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${totalFrames}:s=1280x720:fps=${fps},format=yuv420p`;
     }
 
+    // 电影级色彩滤镜注入 (青橙好莱坞 / 复古胶片 / 黑白高反差 / 赛博霓虹等)
+    const colorFilter = getVisualFilterGraph(options.filter);
+    if (colorFilter) {
+      vfFilter = `${vfFilter},${colorFilter}`;
+    }
+
     // 输出滤镜与编码设置 (必须放在所有输入之后)
     ffmpegArgs.push("-t", String(duration));
     if (hasImage) {
@@ -341,8 +375,9 @@ export function formatVttTime(seconds: number): string {
 export function exportFullEpisode(
   shots: StoryboardShot[],
   projectId: string,
-  options: ExportProjectDto = { includeSubtitles: true, format: "all" }
+  rawOptions: Partial<ExportProjectDto> = {}
 ): ExportProjectResult {
+  const options = ExportProjectDtoSchema.parse(rawOptions);
   const publicDir = path.resolve(process.cwd(), "public", "storage", "videos");
   fs.mkdirSync(publicDir, { recursive: true });
 
@@ -374,7 +409,7 @@ export function exportFullEpisode(
       }
     }
 
-    // 若无物理文件，自动实时补全真实视频片段
+    // 若无物理文件，自动实时补全真实视频片段 (继承分镜或全局色彩滤镜)
     if (!localPath) {
       const rendered = generateRealVideo({
         prompt: shot.prompt,
@@ -382,6 +417,8 @@ export function exportFullEpisode(
         duration: shot.duration || 3.0,
         dialogue: shot.dialogue,
         voiceRole: shot.voiceRole,
+        filter: shot.filter || options.filter,
+        transition: shot.transition || options.transition,
       });
       localPath = rendered.localPath;
     }
@@ -404,44 +441,120 @@ export function exportFullEpisode(
   // 2. 写入全片 Master WebVTT
   fs.writeFileSync(masterVttPath, vttCues.join("\n"), "utf-8");
 
-  // 3. 执行多镜头拼接 (Concat Demuxer)
+  // 3. 执行多镜头拼接 (优先尝试 XFade 电影级平滑交叉融合转场，降级至 Concat Demuxer)
   try {
     if (videoPaths.length === 1) {
       fs.copyFileSync(videoPaths[0], masterMp4Path);
     } else {
-      const concatListFile = path.join(os.tmpdir(), `concat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.txt`);
-      const fileLines = videoPaths.map((p) => `file '${p.replace(/\\/g, "/")}'`).join("\n");
-      fs.writeFileSync(concatListFile, fileLines, "utf-8");
+      let xfadeSuccess = false;
+      const transition = options.transition || "fade";
 
-      try {
-        execFileSync(
-          "ffmpeg",
-          ["-y", "-f", "concat", "-safe", "0", "-i", concatListFile, "-c", "copy", masterMp4Path],
-          { stdio: "ignore", windowsHide: true, timeout: 20000 }
-        );
-      } catch {
-        // -c copy 失败时 (如时间基不一致)，平滑降级重编码拼接
-        execFileSync(
-          "ffmpeg",
-          [
+      // 仅在指定了非 none 转场且镜头数量适中时执行 XFade 特效
+      if (transition !== "none" && videoPaths.length >= 2 && videoPaths.length <= 16) {
+        try {
+          const transDur = 0.5; // 0.5 秒标准交叉过渡
+          const inputArgs: string[] = [];
+          videoPaths.forEach((p) => {
+            inputArgs.push("-i", p);
+          });
+
+          let currentOffset = 0;
+          const vFilters: string[] = [];
+          const aFilters: string[] = [];
+          let prevV = "[0:v]";
+          let prevA = "[0:a]";
+
+          const xfadeTypeMap: Record<string, string> = {
+            fade: "fade",
+            dissolve: "dissolve",
+            wipeleft: "wipeleft",
+            wiperight: "wiperight",
+            fadewhite: "fadewhite",
+            fadeblack: "fadeblack",
+            zoom_cross: "zoomin",
+          };
+          const xfadeName = xfadeTypeMap[transition] || "fade";
+
+          for (let i = 0; i < shots.length - 1; i++) {
+            const shotDur = shots[i].duration || 3.0;
+            currentOffset += Math.max(0.1, shotDur - transDur);
+            const nextV = `[${i + 1}:v]`;
+            const nextA = `[${i + 1}:a]`;
+            const isLast = i === shots.length - 2;
+            const outV = isLast ? "[outv]" : `[v${i + 1}]`;
+            const outA = isLast ? "[outa]" : `[a${i + 1}]`;
+
+            vFilters.push(`${prevV}${nextV}xfade=transition=${xfadeName}:duration=${transDur}:offset=${currentOffset.toFixed(2)}${outV}`);
+            aFilters.push(`${prevA}${nextA}acrossfade=d=${transDur}${outA}`);
+
+            prevV = outV;
+            prevA = outA;
+          }
+
+          const filterComplex = [...vFilters, ...aFilters].join(";");
+          const xfadeArgs = [
             "-y",
-            "-f", "concat",
-            "-safe", "0",
-            "-i", concatListFile,
-            "-c:v", "libx264",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-ar", "16000",
+            ...inputArgs,
+            "-filter_complex",
+            filterComplex,
+            "-map",
+            "[outv]",
+            "-map",
+            "[outa]",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-ar",
+            "16000",
             masterMp4Path,
-          ],
-          { stdio: "ignore", windowsHide: true, timeout: 30000 }
-        );
-      } finally {
-        try { fs.unlinkSync(concatListFile); } catch {}
+          ];
+
+          execFileSync("ffmpeg", xfadeArgs, { stdio: "ignore", windowsHide: true, timeout: 35000 });
+          if (fs.existsSync(masterMp4Path) && fs.statSync(masterMp4Path).size > 1000) {
+            xfadeSuccess = true;
+          }
+        } catch {
+          xfadeSuccess = false;
+        }
+      }
+
+      if (!xfadeSuccess) {
+        // Concat Demuxer 备选方案
+        const concatListFile = path.join(os.tmpdir(), `concat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.txt`);
+        const fileLines = videoPaths.map((p) => `file '${p.replace(/\\/g, "/")}'`).join("\n");
+        fs.writeFileSync(concatListFile, fileLines, "utf-8");
+
+        try {
+          execFileSync(
+            "ffmpeg",
+            ["-y", "-f", "concat", "-safe", "0", "-i", concatListFile, "-c", "copy", masterMp4Path],
+            { stdio: "ignore", windowsHide: true, timeout: 20000 }
+          );
+        } catch {
+          execFileSync(
+            "ffmpeg",
+            [
+              "-y",
+              "-f", "concat",
+              "-safe", "0",
+              "-i", concatListFile,
+              "-c:v", "libx264",
+              "-pix_fmt", "yuv420p",
+              "-c:a", "aac",
+              "-ar", "16000",
+              masterMp4Path,
+            ],
+            { stdio: "ignore", windowsHide: true, timeout: 30000 }
+          );
+        } finally {
+          try { fs.unlinkSync(concatListFile); } catch {}
+        }
       }
     }
   } catch {
-    // 降级：写入最小合法 mp4 容器，确保无论任何情况均不会彻底断流
     writeMinimalValidMp4(masterMp4Path, totalDuration);
   }
 

@@ -67,6 +67,28 @@ export const ImageGenerateResultSchema = z.object({
 });
 export type ImageGenerateResult = z.infer<typeof ImageGenerateResultSchema>;
 
+export const VisualFilterSchema = z.enum([
+  "normal",
+  "cinematic_teal_orange",
+  "vintage_film",
+  "noir_bw",
+  "cyberpunk_neon",
+  "warm_glow",
+]);
+export type VisualFilter = z.infer<typeof VisualFilterSchema>;
+
+export const TransitionEffectSchema = z.enum([
+  "none",
+  "fade",
+  "dissolve",
+  "wipeleft",
+  "wiperight",
+  "fadewhite",
+  "fadeblack",
+  "zoom_cross",
+]);
+export type TransitionEffect = z.infer<typeof TransitionEffectSchema>;
+
 export const VideoGenerateOptionsSchema = z.object({
   model: z.string().min(1),
   prompt: z.string().min(1),
@@ -78,6 +100,8 @@ export const VideoGenerateOptionsSchema = z.object({
   referenceImages: z.array(z.string()).optional(),
   audioPathOrBase64: z.string().optional(),
   cameraMotion: z.enum(["zoom_in", "zoom_out", "pan_right", "pan_left", "breathing", "still"]).optional(),
+  filter: VisualFilterSchema.optional(),
+  transition: TransitionEffectSchema.optional(),
   dialogue: z.string().optional(),
   voiceRole: z.string().optional(),
 });
@@ -156,6 +180,8 @@ export const StoryboardShotSchema = z.object({
   voiceRole: z.string().optional(),
   cameraAngle: z.string().optional(),
   cameraMotion: z.enum(["zoom_in", "zoom_out", "pan_right", "pan_left", "breathing", "still"]).optional(),
+  transition: TransitionEffectSchema.optional(),
+  filter: VisualFilterSchema.optional(),
   duration: z.number().positive().default(3.5),
   status: z.enum(["draft", "image_ready", "video_generating", "video_ready", "failed"]),
   imageUrl: z.string().optional(),
@@ -663,6 +689,8 @@ export type ReorderShotsDto = z.infer<typeof ReorderShotsDtoSchema>;
 export const ExportProjectDtoSchema = z.object({
   includeSubtitles: z.boolean().optional().default(true),
   format: z.enum(["mp4", "vtt", "all"]).optional().default("all"),
+  transition: TransitionEffectSchema.optional().default("fade"),
+  filter: VisualFilterSchema.optional().default("normal"),
 });
 export type ExportProjectDto = z.infer<typeof ExportProjectDtoSchema>;
 

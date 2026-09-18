@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { resolveVoicePersona } from "./voice-library.js";
 
 export interface SpeechSynthOptions {
   text: string;
@@ -11,31 +12,30 @@ export interface SpeechSynthOptions {
 
 /**
  * 影视级全模态语音合成引擎 (三级自适应阶梯架构: Edge Neural 神经拟真人声 -> SAPI 原生真人 -> 多谐波共振峰)
- * 彻底消除假配音，按角色赋予专业短剧影视音色 (云希热血主角 / 晓晓灵动女主 / 云健沉稳反派与旁白)
+ * 彻底消除假配音，对接 20+ 爆款短剧专有角色人设库 (冷酷霸总/热血主角/灵动女主/阴沉反派/出尘仙尊等)
  */
 export function synthesizeSpeech(options: SpeechSynthOptions): Buffer {
   const text = (options.text || "").trim() || "无对白";
-  const voice = (options.voice || "male").toLowerCase();
+  const persona = resolveVoicePersona(options.voice);
 
   // 0. 优先调用微软 Edge Neural 神经语音引擎 (爆款短剧原版高拟真情感音色)
   try {
-    let neuralVoice = "zh-CN-YunxiNeural"; // 默认热血青年主角
-    if (voice.includes("female") || voice.includes("女") || voice.includes("xiaoxiao") || voice.includes("师妹") || voice.includes("女主")) {
-      neuralVoice = "zh-CN-XiaoxiaoNeural";
-    } else if (voice.includes("yunjian") || voice.includes("执事") || voice.includes("反派") || voice.includes("长老") || voice.includes("旁白") || voice.includes("narrator")) {
-      neuralVoice = "zh-CN-YunjianNeural";
-    } else if (voice.startsWith("zh-cn-") || voice.includes("neural")) {
-      neuralVoice = options.voice!;
-    }
+    const neuralVoice = persona.edgeVoice;
+    const rateArg = persona.rate;
+    const pitchArg = persona.pitch;
 
     const tmpMp3 = path.join(os.tmpdir(), `cd_neural_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.mp3`);
     const safeText = text.replace(/[\r\n\t]/g, " ").slice(0, 500);
 
-    execFileSync("edge-tts", ["--voice", neuralVoice, "--text", safeText, "--write-media", tmpMp3], {
-      stdio: "ignore",
-      timeout: 8000,
-      windowsHide: true,
-    });
+    execFileSync(
+      "edge-tts",
+      ["--voice", neuralVoice, "--rate", rateArg, "--pitch", pitchArg, "--text", safeText, "--write-media", tmpMp3],
+      {
+        stdio: "ignore",
+        timeout: 8000,
+        windowsHide: true,
+      }
+    );
 
     if (fs.existsSync(tmpMp3) && fs.statSync(tmpMp3).size > 500) {
       // 通过系统 FFmpeg 规范化混流为 16kHz Mono 16-bit PCM WAV，保持全管线格式绝对一致
@@ -61,14 +61,7 @@ export function synthesizeSpeech(options: SpeechSynthOptions): Buffer {
   if (process.platform === "win32") {
     try {
       const tmpWav = path.join(os.tmpdir(), `tf_sapi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.wav`);
-      const isFemale =
-        voice.includes("female") ||
-        voice.includes("女") ||
-        voice.includes("师妹") ||
-        voice.includes("huihui") ||
-        voice.includes("yaoyao") ||
-        voice.includes("zira");
-      const targetGender = isFemale ? "Female" : "Male";
+      const targetGender = persona.sapiGender;
 
       // 提取汉字与安全转义
       const safeText = text.replace(/['"\r\n\\]/g, " ").slice(0, 300);
@@ -97,20 +90,16 @@ export function synthesizeSpeech(options: SpeechSynthOptions): Buffer {
 
       if (fs.existsSync(tmpWav)) {
         const buf = fs.readFileSync(tmpWav);
-        try {
-          fs.unlinkSync(tmpWav);
-        } catch {}
-        if (buf.length > 100) {
-          return normalizeWavToCanonical44Byte(buf);
-        }
+        try { fs.unlinkSync(tmpWav); } catch {}
+        return normalizeWavToCanonical44Byte(buf);
       }
     } catch {
-      // SAPI 偶发超时或异常时自动无缝降级到声学谐波合成
+      // SAPI 调用异常，降级至 Tier 2
     }
   }
 
   // 2. 纯算法多谐波共振峰声学发声 (严格保证不同文字、不同音色生成完全不同的声波数据)
-  return generateAcousticSpeechWav(text, voice);
+  return generateAcousticSpeechWav(text, options.voice);
 }
 
 /**
@@ -168,19 +157,15 @@ function normalizeWavToCanonical44Byte(buf: Buffer): Buffer {
 }
 
 /**
- * 纯算法多谐波共振峰声学波形生成器
+ * 纯算法多谐波共振峰声学波形生成器 (根据 20+ 角色人设精确调配声学基频与共振峰)
  */
 export function generateAcousticSpeechWav(text: string, voice: string = "male"): Buffer {
   const sampleRate = 16000;
-  const isFemale =
-    voice.includes("female") ||
-    voice.includes("女") ||
-    voice.includes("师妹") ||
-    voice.includes("yaoyao") ||
-    voice.includes("huihui");
+  const persona = resolveVoicePersona(voice);
+  const isFemale = persona.gender === "female";
 
-  // 基频 (F0): 男声 115-135Hz, 女声 220-250Hz
-  const baseF0 = isFemale ? 230 : 125;
+  // 基频 (F0): 精准采用角色专有人设基频 (如霸总 105Hz, 帝王 95Hz, 甜美女主 235Hz, 灵动少女 260Hz)
+  const baseF0 = persona.fundamentalHz || (isFemale ? 230 : 125);
   // 口腔共振峰 (F1, F2): 区分男女声部共鸣
   const f1 = isFemale ? 680 : 500;
   const f2 = isFemale ? 1950 : 1450;

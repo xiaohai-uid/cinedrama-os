@@ -123,6 +123,24 @@
             </select>
           </div>
 
+          <div class="input-group">
+            <label for="stylePresetSelect">短剧全题材画风预设</label>
+            <select id="stylePresetSelect">
+              <option value="xianxia">🇨🇳 国风修仙玄幻 (高精古风电影感)</option>
+              <option value="anime">🇯🇵 热血日漫番剧 (新海诚光影风)</option>
+              <option value="cyberpunk">🦾 赛博国潮未来 (霓虹故障光线)</option>
+              <option value="cinematic">🎥 好莱坞电影工业 (超写实宽银幕)</option>
+              <option value="ceo_romance">🏢 都市霸总甜宠 (精致高定摩登)</option>
+              <option value="palace_intrigue">👑 宫廷权谋大戏 (典雅工笔重彩)</option>
+              <option value="wasteland_survival">☢️ 废土末日求生 (末日机械颗粒感)</option>
+              <option value="suspense_republic">🕵️ 民国悬疑谍战 (冷色调光影交错)</option>
+              <option value="urban_comedy">🏙️ 都市轻喜生活 (暖调市井烟火气)</option>
+              <option value="retro_hk_action">🕶️ 复古港风动作 (王家卫微醺抽帧)</option>
+              <option value="sweet_pet_romance">🌸 青春校园甜宠 (阳光微暖胶片)</option>
+              <option value="interstellar_mecha">🚀 银河星际机甲 (深空史诗重装)</option>
+            </select>
+          </div>
+
           <!-- 一键生成大按钮 -->
           <button class="btn btn-primary btn-generate" id="btnGenerate">
             <span class="btn-icon">⚡</span>
@@ -532,6 +550,34 @@
               <small>生成对白时序连续的 WebVTT 文件并在 MP4 中压制字幕</small>
             </div>
           </label>
+          <div class="export-opt-row" style="margin-top: 12px; display: flex; flex-direction: column; gap: 6px;">
+            <label for="exportTransitionSelect" style="font-size: 13px; color: var(--text-color, #e0e0e0); font-weight: 500;">
+              🎬 镜头交叉转场 (FFmpeg XFade)
+            </label>
+            <select id="exportTransitionSelect" class="form-select" style="padding: 8px 12px; border-radius: 6px; background: rgba(255,255,255,0.06); color: inherit; border: 1px solid rgba(255,255,255,0.15);">
+              <option value="fade">淡入淡出 (Cross Fade) [标准电影转场]</option>
+              <option value="dissolve">叠化融合 (Dissolve) [唯美剧情交叉]</option>
+              <option value="fadewhite">高潮闪白 (Fade to White) [高燃觉醒卡点]</option>
+              <option value="fadeblack">沉稳落黑 (Fade to Black) [深沉悬疑转场]</option>
+              <option value="wipeleft">向左划入 (Wipe Left) [快节奏短剧切换]</option>
+              <option value="wiperight">向右划出 (Wipe Right) [视线引导转场]</option>
+              <option value="zoom_cross">变焦穿梭 (Zoom Cross) [激烈对决冲击]</option>
+              <option value="none">硬切直连 (Direct Cut) [快速拼接]</option>
+            </select>
+          </div>
+          <div class="export-opt-row" style="margin-top: 12px; display: flex; flex-direction: column; gap: 6px;">
+            <label for="exportFilterSelect" style="font-size: 13px; color: var(--text-color, #e0e0e0); font-weight: 500;">
+              🎨 好莱坞视觉色彩滤镜
+            </label>
+            <select id="exportFilterSelect" class="form-select" style="padding: 8px 12px; border-radius: 6px; background: rgba(255,255,255,0.06); color: inherit; border: 1px solid rgba(255,255,255,0.15);">
+              <option value="cinematic_teal_orange">青橙好莱坞 (Teal & Orange) [院线质感]</option>
+              <option value="vintage_film">复古胶片 (Vintage Film) [年代颗粒质感]</option>
+              <option value="noir_bw">暗黑高反差黑白 (Noir B&W) [硬核悬疑侦探]</option>
+              <option value="cyberpunk_neon">赛博朋克霓虹 (Cyberpunk Neon) [未来高饱和]</option>
+              <option value="warm_glow">暖阳柔光 (Warm Glow) [甜宠治愈番剧]</option>
+              <option value="normal">标准原色 (Normal) [原汁原味画面]</option>
+            </select>
+          </div>
         </div>
         <div class="export-action-box">
           <button class="btn btn-primary btn-block btn-lg" id="btnStartExport">

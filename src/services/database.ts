@@ -67,6 +67,8 @@ export class DatabaseService {
         dialogue TEXT,
         voice_role TEXT,
         duration REAL NOT NULL DEFAULT 3.0,
+        transition TEXT,
+        filter TEXT,
         status TEXT NOT NULL DEFAULT 'draft',
         image_url TEXT,
         video_url TEXT,
@@ -123,6 +125,13 @@ export class DatabaseService {
         FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
       );
     `);
+
+    try {
+      this.db.exec("ALTER TABLE storyboard_shots ADD COLUMN transition TEXT");
+    } catch {}
+    try {
+      this.db.exec("ALTER TABLE storyboard_shots ADD COLUMN filter TEXT");
+    } catch {}
   }
 
   public createProject(project: CreateProjectDto): DramaProject {
@@ -196,8 +205,8 @@ export class DatabaseService {
     const full = StoryboardShotSchema.parse(candidate);
 
     const stmt = this.db.prepare(`
-      INSERT INTO storyboard_shots (id, project_id, episode_index, shot_index, prompt, dialogue, voice_role, duration, status, image_url, video_url, audio_url, error, updated_at)
-      VALUES (@id, @projectId, @episodeIndex, @shotIndex, @prompt, @dialogue, @voiceRole, @duration, @status, @imageUrl, @videoUrl, @audioUrl, @error, @updatedAt)
+      INSERT INTO storyboard_shots (id, project_id, episode_index, shot_index, prompt, dialogue, voice_role, duration, transition, filter, status, image_url, video_url, audio_url, error, updated_at)
+      VALUES (@id, @projectId, @episodeIndex, @shotIndex, @prompt, @dialogue, @voiceRole, @duration, @transition, @filter, @status, @imageUrl, @videoUrl, @audioUrl, @error, @updatedAt)
     `);
 
     stmt.run({
@@ -209,6 +218,8 @@ export class DatabaseService {
       dialogue: full.dialogue || null,
       voiceRole: full.voiceRole || null,
       duration: full.duration,
+      transition: full.transition || null,
+      filter: full.filter || null,
       status: full.status,
       imageUrl: full.imageUrl || null,
       videoUrl: full.videoUrl || null,
@@ -231,6 +242,8 @@ export class DatabaseService {
       dialogue: r.dialogue || undefined,
       voiceRole: r.voice_role || undefined,
       duration: r.duration,
+      transition: r.transition || undefined,
+      filter: r.filter || undefined,
       status: r.status,
       imageUrl: r.image_url || undefined,
       videoUrl: r.video_url || undefined,
@@ -252,6 +265,8 @@ export class DatabaseService {
       dialogue: r.dialogue || undefined,
       voiceRole: r.voice_role || undefined,
       duration: r.duration,
+      transition: r.transition || undefined,
+      filter: r.filter || undefined,
       status: r.status,
       imageUrl: r.image_url || undefined,
       videoUrl: r.video_url || undefined,
@@ -268,6 +283,8 @@ export class DatabaseService {
       videoUrl?: string;
       audioUrl?: string;
       duration?: number;
+      transition?: StoryboardShot["transition"];
+      filter?: StoryboardShot["filter"];
       status?: StoryboardShot["status"];
       error?: string;
     }
@@ -290,6 +307,14 @@ export class DatabaseService {
     if (updates.duration !== undefined) {
       fields.push("duration = ?");
       values.push(updates.duration);
+    }
+    if (updates.transition !== undefined) {
+      fields.push("transition = ?");
+      values.push(updates.transition);
+    }
+    if (updates.filter !== undefined) {
+      fields.push("filter = ?");
+      values.push(updates.filter);
     }
     if (updates.status !== undefined) {
       fields.push("status = ?");
@@ -317,6 +342,8 @@ export class DatabaseService {
       dialogue: r.dialogue || undefined,
       voiceRole: r.voice_role || undefined,
       duration: r.duration,
+      transition: r.transition || undefined,
+      filter: r.filter || undefined,
       status: r.status,
       imageUrl: r.image_url || undefined,
       videoUrl: r.video_url || undefined,

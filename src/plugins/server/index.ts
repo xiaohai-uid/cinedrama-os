@@ -23,6 +23,8 @@ import {
   ExportProjectDtoSchema,
 } from "../../core/types.js";
 import { exportFullEpisode } from "../../services/video-generator.js";
+import { listStylePresets } from "../../services/style-presets.js";
+import { listVoicePersonas } from "../../services/voice-library.js";
 
 export interface ServerPluginConfig {
   host?: string;
@@ -141,6 +143,16 @@ export function apply(ctx: Context, config: ServerPluginConfig = {}) {
           return sendJson(200, { success: true, message: "供应商配置已更新" });
         }
         return sendJson(404, { error: "供应商不存在或不支持动态配置" });
+      }
+
+      // 2.4 GET /api/presets/styles
+      if (pathname === "/api/presets/styles" && req.method === "GET") {
+        return sendJson(200, { presets: listStylePresets() });
+      }
+
+      // 2.5 GET /api/presets/voices
+      if (pathname === "/api/presets/voices" && req.method === "GET") {
+        return sendJson(200, { personas: listVoicePersonas() });
       }
 
       // 3. GET /api/projects

@@ -228,6 +228,8 @@ export class BridgeProviderPlugin implements IModelProvider {
       firstFrame: options.firstFrame,
       audioPathOrBase64: options.audioPathOrBase64,
       cameraMotion: options.cameraMotion,
+      filter: options.filter,
+      transition: options.transition,
       dialogue: options.dialogue,
       voiceRole: options.voiceRole,
     });

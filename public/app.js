@@ -219,6 +219,8 @@
     exportShotCount: document.getElementById('exportShotCount'),
     exportTotalDuration: document.getElementById('exportTotalDuration'),
     exportIncludeSubtitles: document.getElementById('exportIncludeSubtitles'),
+    exportTransitionSelect: document.getElementById('exportTransitionSelect'),
+    exportFilterSelect: document.getElementById('exportFilterSelect'),
     btnStartExport: document.getElementById('btnStartExport'),
     exportProgressBox: document.getElementById('exportProgressBox'),
     exportProgressFill: document.getElementById('exportProgressFill'),
@@ -826,6 +828,16 @@
                 ? `<span class="shot-health-badge subtitle" title="含字幕混流轨道与对白字幕">💬 字幕对齐</span>`
                 : ''
             }
+            ${
+              shot.filter && shot.filter !== 'normal'
+                ? `<span class="shot-health-badge filter" title="电影级色彩滤镜">🎨 ${escapeHtml(shot.filter === 'cinematic_teal_orange' ? '青橙好莱坞' : shot.filter === 'vintage_film' ? '复古胶片' : shot.filter === 'noir_bw' ? '黑白高反差' : shot.filter === 'cyberpunk_neon' ? '赛博霓虹' : shot.filter === 'warm_glow' ? '暖阳柔光' : shot.filter)}</span>`
+                : ''
+            }
+            ${
+              shot.transition && shot.transition !== 'none'
+                ? `<span class="shot-health-badge transition" title="电影交叉转场过渡">⚡ ${escapeHtml(shot.transition === 'fade' ? '淡入淡出' : shot.transition === 'dissolve' ? '叠化' : shot.transition === 'fadewhite' ? '高潮闪白' : shot.transition === 'fadeblack' ? '沉稳落黑' : shot.transition === 'wipeleft' ? '向左划入' : shot.transition === 'wiperight' ? '向右划出' : shot.transition === 'zoom_cross' ? '变焦穿梭' : shot.transition)}</span>`
+                : ''
+            }
             <span class="shot-health-badge sync" title="音画时长已自动对齐">${shot.duration || 3.5}s 对齐</span>
             <span class="shot-health-badge consistency" title="角色特征锚点锁定，防止脸部与画风漂移">🎯 角色锁: ${escapeHtml(shot.voiceRole || "主角")}</span>
           </div>
@@ -916,8 +928,12 @@
         .map(
           (c) => `
           <div class="character-card">
-            <h5>${c.name} <span class="badge badge-accent">${c.role}</span></h5>
-            <p class="character-desc">${c.visualPrompt}</p>
+            <h5>${escapeHtml(c.name)} <span class="badge badge-accent">${escapeHtml(c.role)}</span></h5>
+            <p class="character-desc">${escapeHtml(c.visualPrompt)}</p>
+            <div class="character-voice-tag" style="margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; background: rgba(137,180,250,0.12); color: #89b4fa; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(137,180,250,0.2);">
+              <span>🎙️ 爆款短剧专有人设音色库</span>
+              <span style="color: #a6adc8;">· 情感微调与多谐波声学</span>
+            </div>
           </div>
         `
         )
@@ -1263,13 +1279,15 @@
 
     try {
       const includeSubtitles = dom.exportIncludeSubtitles ? dom.exportIncludeSubtitles.checked : true;
+      const transition = dom.exportTransitionSelect ? dom.exportTransitionSelect.value : 'fade';
+      const filter = dom.exportFilterSelect ? dom.exportFilterSelect.value : 'normal';
       const res = await fetch(apiUrl(`/api/projects/${state.currentProjectId}/export`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ includeSubtitles, format: 'mp4' }),
+        body: JSON.stringify({ includeSubtitles, format: 'mp4', transition, filter }),
       });
       const data = await res.json();
-      if (!data.success || !data.export) {
+      if (!data.export) {
         throw new Error(data.error || '导出整集失败');
       }
 

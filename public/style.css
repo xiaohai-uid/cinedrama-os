@@ -1597,6 +1597,18 @@ body {
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
+.shot-health-badge.filter {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+.shot-health-badge.transition {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
 /* ==============================================================================
    时间轴交互、卡片拖拽重排与导出中心样式 (Timeline, Drag & Export UI)
    ============================================================================== */
