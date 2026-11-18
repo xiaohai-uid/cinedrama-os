@@ -8,7 +8,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-5.7+-blue.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/Microkernel-Cordis_v4-purple.svg" alt="Cordis">
-  <img src="https://img.shields.io/badge/Tests-90%2F90_Passing-brightgreen.svg" alt="Tests">
+  <a href="https://github.com/xiaohai-uid/cinedrama-os/actions/workflows/ci.yml"><img src="https://github.com/xiaohai-uid/cinedrama-os/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/Validation-Zod_Fail--Fast-success.svg" alt="Zod">
   <img src="https://img.shields.io/badge/Engine-FFmpeg_Lossless-orange.svg" alt="FFmpeg">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
@@ -94,8 +94,8 @@ flowchart TD
 git clone https://github.com/xiaohai-uid/cinedrama-os.git
 cd cinedrama-os
 
-# 2. 安装依赖
-npm install
+# 2. 与 CI 对齐：准备 Node.js 20、pnpm 9 和 FFmpeg 后安装依赖
+pnpm install --frozen-lockfile
 
 # 3. 运行全量工程检验套件
 npm test
@@ -114,10 +114,10 @@ npm start
 CineDrama OS 拥有完备的自动化门禁套件，涵盖 14 个独立模块，确保系统坚不可摧：
 
 ```bash
-# 运行全部 14 个质量套件 (90/90 Tests)
+# 运行当前检验套件
 npm test
 
-# 强类型静态检查 (0 errors)
+# 强类型静态检查
 npm run typecheck
 
 # 专项验证真实物理能力边界
